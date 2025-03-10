@@ -6,34 +6,21 @@
     <title>Video Processor</title>
 </head>
 <body>
-    <h1>Upload Video(s) or Use Webcam for Processing</h1>
+    <h1>Upload Video or Use Webcam for Processing</h1>
     
-    <h2>Upload Video(s)</h2>
+    <h2>Upload Video</h2>
     <form action="/upload" method="post" enctype="multipart/form-data" id="uploadForm">
-        <label>Video 1: <input type="file" name="file1"></label>
-        <fieldset>
-            <legend>Models for Video 1:</legend>
-            <label><input type="checkbox" name="models_file1" value="mask"> Mask Detection</label>
-            <label><input type="checkbox" name="models_file1" value="crowd"> Crowd Count</label>
-            <label><input type="checkbox" name="models_file1" value="queue"> Queue Detection</label>
-            <label><input type="checkbox" name="models_file1" value="smoke"> Smoke Detection</label>
-        </fieldset>
-        
-        <label>Video 2: <input type="file" name="file2"></label>
-        <fieldset>
-            <legend>Models for Video 2:</legend>
-            <label><input type="checkbox" name="models_file2" value="mask"> Mask Detection</label>
-            <label><input type="checkbox" name="models_file2" value="crowd"> Crowd Count</label>
-            <label><input type="checkbox" name="models_file2" value="queue"> Queue Detection</label>
-            <label><input type="checkbox" name="models_file2" value="smoke"> Smoke Detection</label>
-        </fieldset>
-        
+        <input type="file" name="file" required>
+        <label><input type="checkbox" name="models" value="mask"> Mask Detection</label>
+        <label><input type="checkbox" name="models" value="crowd"> Crowd Count</label>
+        <label><input type="checkbox" name="models" value="queue"> Queue Detection</label>
+        <label><input type="checkbox" name="models" value="smoke"> Smoke Detection</label>
         <button type="submit">Upload</button>
     </form>
     <p id="uploadStatus"></p>
     <p id="uploadDetections"></p>
     <a id="uploadDownloadLink" style="display: none;">Download Processed Video</a>
-    
+
     <h2>Use Webcam</h2>
     <p>Select Model(s):</p>
     <form action="/webcam" method="get" id="webcamForm">
@@ -60,7 +47,9 @@
         document.getElementById('uploadForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             const formData = new FormData(e.target);
-            
+            const selectedModels = getSelectedModels();
+            formData.append('modelType', JSON.stringify(selectedModels));
+
             const status = document.getElementById('uploadStatus');
             const detections = document.getElementById('uploadDetections');
             const downloadLink = document.getElementById('uploadDownloadLink');
@@ -78,7 +67,7 @@
 
                 if (response.ok) {
                     status.textContent = result.message;
-                    detections.textContent = JSON.stringify(result.results, null, 2);
+                    detections.textContent = `Total people detected: ${result.total_detections}`;
                     downloadLink.href = result.download_link;
                     downloadLink.style.display = 'inline';
                     downloadLink.textContent = 'Download Processed Video';

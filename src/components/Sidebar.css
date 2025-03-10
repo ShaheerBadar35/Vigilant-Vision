@@ -1,6 +1,6 @@
 /* Sidebar Styles */
 .sidebar {
-    background-color: #111827;
+    background-color: #F7F7F8 ;
     color: white;
     width: 250px;
     height: 100vh;
@@ -11,7 +11,7 @@
     position: fixed;
     top: 0;
     left: 0;
-    border-right: 2px solid #2d3748;
+    /* border-right: 2px solid #2d3748; */
     z-index: 1000;
   }
   
@@ -38,6 +38,17 @@
     margin-bottom: 15px;
   }
   
+  .Icon {
+    width: 25px;
+    height: 25px;
+  }
+  .Row-Menu {
+    display: flex;
+    flex: 1;
+    flex-direction: row;
+    align-items: center;
+  }
+
   .invite-btn {
     background-color: #3b82f6;
     color: white;
@@ -71,7 +82,7 @@
   
   .menu li a {
     text-decoration: none;
-    color: white;
+    color: "#212121";
     font-size: 18px;
     font-weight: 500;
     padding: 8px 15px;
@@ -81,8 +92,10 @@
   }
   
   .menu li a:hover {
-    background-color: #3b82f6;
+    background-color: #6161f176;
+    /* opacity: 0.15; */
     padding-left: 20px;
+    color: black;
   }
   
   /* Active Menu Item Styles */
