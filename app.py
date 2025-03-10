@@ -119,7 +119,7 @@ def initialize_database():
     conn.commit()
     conn.close()
 
-
+#checking commit
 def log_alert(camera_id, location_name, alert_type, detected_value):
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
