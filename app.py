@@ -721,6 +721,7 @@ def webcam_feed():
             cv2.destroyAllWindows()
 
         return jsonify({'message': 'Live feed processing completed', 'results': responses})
+
 @app.route('/alerts', methods=['GET'])
 def fetch_alerts():
     global last_crowd_alert_time
