@@ -4,7 +4,7 @@ while cap.isOpened():
     ret, frame = cap.read()
     if not ret:
         break
-    cv2.imshow('DroidCam Feed', frame)
+    cv2.imshow('Phone Feed', frame)
     if cv2.waitKey(1) == ord('q'):
         break
 cap.release()
