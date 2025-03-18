@@ -132,56 +132,28 @@ def log_alert(camera_id, location_name, alert_type, detected_value):
     conn.close()
 
 #LOGGING DATA IN DB
-def log_crowd_detection_to_db(camera_id, no_of_detections):
-    """Insert a detection log into the CrowdControl table."""
-    print("CC LOGGED CALLED")
-    conn = sqlite3.connect(DB_NAME)
-    cursor = conn.cursor()
-
-    timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    cursor.execute('''
-        INSERT INTO CrowdControl (Camera_ID, Timestamp, No_of_Detections)
-        VALUES (?, ?, ?)
-    ''', (camera_id, timestamp, no_of_detections))
-    conn.commit()
-    conn.close()
-
-def log_mask_detection_to_db(camera_id, no_of_detections,image_data):
-    """Log a detection event into the database."""
-    conn = sqlite3.connect(DB_NAME)
+def log_detection_to_db(camera_id, model_type, no_of_detections, image_data=None):
+    conn = sqlite3.connect('VV.db')
     cursor = conn.cursor()
     timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    cursor.execute('''
-        INSERT INTO Mask_Detection (Camera_ID, Timestamp, No_of_Detections, Image)
-        VALUES (?, ?, ?, ?)
-    ''', (camera_id, timestamp, no_of_detections, image_data))
-    print("Called")
-    conn.commit()
-    conn.close()
-
-def log_queue_detection_to_db(camera_id, no_of_detections,image_data):
-    """Log a detection event into the database."""
-    conn = sqlite3.connect(DB_NAME)
-    cursor = conn.cursor()
-    timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    cursor.execute('''
-        INSERT INTO Queue_Detection (Camera_ID, Timestamp, No_of_Detections, Image)
-        VALUES (?, ?, ?, ?)
-    ''', (camera_id, timestamp, no_of_detections, image_data))
-    print("Called")
-    conn.commit()
-    conn.close()
-
-def log_smoke_detection_to_db(camera_id, no_of_detections,image_data):
-    """Log a detection event into the database."""
-    conn = sqlite3.connect(DB_NAME)
-    cursor = conn.cursor()
-    timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    cursor.execute('''
-        INSERT INTO Smoking_Detection (Camera_ID, Timestamp, No_of_Detections, Image)
-        VALUES (?, ?, ?, ?)
-    ''', (camera_id, timestamp, no_of_detections, image_data))
-    print("Called")
+    print("INSIDE LOG DETECTION DB")
+    if model_type == "crowd":
+        print("Crowd Data logged in DB")
+        cursor.execute('''INSERT INTO CrowdControl (Camera_ID, Timestamp, No_of_Detections) VALUES (?, ?, ?)''',
+                       (camera_id, timestamp, no_of_detections))
+    elif model_type == "mask":
+        print("Mask Data logged in DB")
+        cursor.execute('''INSERT INTO Mask_Detection (Camera_ID, Timestamp, No_of_Detections, Image) VALUES (?, ?, ?, ?)''',
+                       (camera_id, timestamp, no_of_detections, image_data))
+    elif model_type == "queue":
+        print("QUEUE Data logged in DB")
+        cursor.execute('''INSERT INTO Queue_Detection (Camera_ID, Timestamp, No_of_Detections, Image) VALUES (?, ?, ?, ?)''',
+                       (camera_id, timestamp, no_of_detections, image_data))
+    elif model_type == "smoke":
+        print("Smoke Data logged in DB")
+        cursor.execute('''INSERT INTO Smoking_Detection (Camera_ID, Timestamp, No_of_Detections, Image) VALUES (?, ?, ?, ?)''',
+                       (camera_id, timestamp, no_of_detections, image_data))
+    
     conn.commit()
     conn.close()
 
@@ -191,7 +163,7 @@ initialize_database()
 #CC MODELS FUNCTIONS
 def CC_process_video_alternative(video_path, model, output_path, conf_threshold=0.25, frame_skip=10, detection_threshold=5):
     """Efficient frame-by-frame video processing, skipping frames periodically, with people detection."""
-    print("CC UPLOAD CALLED")
+    print("CC UPLOAD VIDEO CALLED")
     cap = cv2.VideoCapture(video_path)
     frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
@@ -250,7 +222,7 @@ def CC_process_video_alternative(video_path, model, output_path, conf_threshold=
         # If the detection threshold is exceeded, log to the database
         if frame_people_detected >= detection_threshold:
             print("Inside if, total ppl in this frame :",frame_people_detected)
-            log_crowd_detection_to_db(camera_id, frame_people_detected)
+            log_detection_to_db(camera_id,"crowd", frame_people_detected)
             location_name = "MainHall"  # Fetch location dynamically if needed
             log_alert(camera_id, location_name, "Crowd", frame_people_detected)
 
@@ -267,7 +239,7 @@ def CC_process_video_alternative(video_path, model, output_path, conf_threshold=
 frame_count = 0  # Global counter for frame skipping
 last_crowd_alert_time = None #GLOBAL counter to check last crowd alert
 
-def CC_process_webcam_feed(frame, model, conf_threshold=0.25,frame_skip=10,detection_threshold=1):
+def CC_process_webcam_feed(frame, model, conf_threshold=0.25,frame_skip=10,detection_threshold=5):
     """Process a single frame for people detection."""
     print("Processing frame for crowd detection...")
     print("Detection Threshold Received: ",detection_threshold)
@@ -323,7 +295,7 @@ def CC_process_webcam_feed(frame, model, conf_threshold=0.25,frame_skip=10,detec
 
     # Log detections if threshold is met
     if total_people_detected_in_frame >= detection_threshold:
-        log_crowd_detection_to_db("Webcam", total_people_detected_in_frame)
+        log_detection_to_db("Webcam","crowd", total_people_detected_in_frame)
         location_name = "Webcam Location"  # Replace with dynamic location
         log_alert("Webcam", location_name, "Crowd", total_people_detected_in_frame)
 
@@ -358,7 +330,7 @@ def MASK_detect_objects_from_webcam(frame, model):
 
                     _, image_buffer = cv2.imencode('.jpg', frame)
                     image_data = image_buffer.tobytes()
-                    log_mask_detection_to_db("Webcam", no_mask_detections, image_data)
+                    log_detection_to_db("Webcam", "mask", no_mask_detections, image_data)
                     location_name = "MainHall"  # Fetch location dynamically if needed
                     log_alert("Webcam", location_name, "No-Mask", no_mask_detections)
 
@@ -412,7 +384,7 @@ def MASK_process_video_for_detections(video_path,model):
                     image_data = image_buffer.tobytes()
 
                     # Log detection to the database
-                    log_mask_detection_to_db(camera_id, 1, image_data)
+                    log_detection_to_db(camera_id, "mask", 1, image_data)
                     location_name = "MainHall"  # Fetch dynamically if needed
                     log_alert(camera_id, location_name, "Mask", 1)
 
@@ -447,7 +419,7 @@ def QUEUE_detect_objects_from_webcam(frame, model):
 
                     _, image_buffer = cv2.imencode('.jpg', frame)
                     image_data = image_buffer.tobytes()
-                    log_queue_detection_to_db("Webcam", no_queue_detections, image_data)
+                    log_detection_to_db("Webcam", "queue", no_queue_detections, image_data)
                     location_name = "MainHall"  # Fetch location dynamically if needed
                     log_alert("Webcam", location_name, "No-Queue", no_queue_detections)                    
 
@@ -455,7 +427,7 @@ def QUEUE_detect_objects_from_webcam(frame, model):
 
 def QUEUE_process_video_for_detections(video_path,model):
     """Process a video for mask detections and save snapshots to the database."""
-    print("FUNC1 Called")
+    print("QUEUE UPLOAD VIDEO Called")
     cap = cv2.VideoCapture(video_path)
     count = 0
     camera_id = os.path.basename(video_path)  # Use the video filename as the camera ID
@@ -501,8 +473,10 @@ def QUEUE_process_video_for_detections(video_path,model):
                     image_data = image_buffer.tobytes()
 
                     # Log detection to the database
-                    log_queue_detection_to_db(camera_id, 1, image_data)
+                    print("LOG DETECTION TO DB OF QUEUE SHOULD BE CALLED")
+                    log_detection_to_db(camera_id, "queue", 1, image_data)
                     location_name = "MainHall"  # Fetch dynamically
+                    print("LOG ALERTS OF QUEUE MUST BE CALLED")
                     log_alert(camera_id, location_name, "Queue", 1)
 
 
@@ -543,7 +517,7 @@ def SMOKE_detect_objects_from_webcam(frame, model):
                     image_data = image_buffer.tobytes()
 
                     # Log the detection into the database
-                    log_smoke_detection_to_db("Webcam", smoke_detections, image_data)
+                    log_detection_to_db("Webcam", "smoke", smoke_detections, image_data)
                     location_name = "MainHall"  # Fetch location dynamically if needed
                     log_alert("Webcam", location_name, "Smoking", smoke_detections)
             
@@ -596,7 +570,7 @@ def SMOKE_process_video_for_detections(video_path,model):
                     image_data = image_buffer.tobytes()
 
                     # Log detection to the database
-                    log_smoke_detection_to_db(camera_id, 1, image_data)
+                    log_detection_to_db(camera_id, "smoke", 1, image_data)
                     location_name = "MainHall"  # Fetch dynamically
                     log_alert(camera_id, location_name, "Smoke", 1)
 
@@ -610,65 +584,56 @@ def index():
 
 @app.route('/upload', methods=['POST'])
 def upload_file():
-    """Handle video uploads and process selected models concurrently."""
-    if 'file' not in request.files:
+    if 'file1' not in request.files and 'file2' not in request.files:
         return jsonify({'error': 'No file uploaded'}), 400
 
-    file = request.files['file']
-    if file.filename == '':
-        return jsonify({'error': 'No selected file'}), 400
-
-    selected_models = request.form.getlist('models')  # Get selected models
+    file1 = request.files.get('file1')
+    file2 = request.files.get('file2')
+    
+    selected_models_file1 = request.form.getlist('models_file1')
+    selected_models_file2 = request.form.getlist('models_file2')
     detection_threshold = int(request.form.get('threshold', 5))
-
-    if not selected_models:
+    
+    if not selected_models_file1 and not selected_models_file2:
         return jsonify({'error': 'No model selected'}), 400
-
-    if file:
-        input_path = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
-        file.save(input_path)  # Save uploaded file
-
-        # Define tasks for the selected models
-        tasks = []
-        responses = {}
-        with ThreadPoolExecutor() as executor:
+    
+    tasks = []
+    responses = {}
+    with ThreadPoolExecutor() as executor:
+        def process_video(file, input_path, selected_models):
             if 'crowd' in selected_models:
                 output_path_crowd = os.path.join(app.config['OUTPUT_FOLDER'], 'crowd_' + file.filename)
-                tasks.append(
-                    executor.submit(
-                        CC_process_video_alternative, input_path, CROWD_MODEL, output_path_crowd, 0.25, 10,detection_threshold
-                    )
-                )
-
+                tasks.append(executor.submit(CC_process_video_alternative, input_path, CROWD_MODEL, output_path_crowd, 0.25, 10, detection_threshold))
             if 'mask' in selected_models:
-                tasks.append(
-                    executor.submit(MASK_process_video_for_detections, input_path, MASK_MODEL)
-                )
-
+                tasks.append(executor.submit(MASK_process_video_for_detections, input_path, MASK_MODEL))
             if 'queue' in selected_models:
-                tasks.append(
-                    executor.submit(QUEUE_process_video_for_detections, input_path, QUEUE_MODEL)
-                )
-
+                tasks.append(executor.submit(QUEUE_process_video_for_detections, input_path, QUEUE_MODEL))
             if 'smoke' in selected_models:
-                tasks.append(
-                    executor.submit(SMOKE_process_video_for_detections, input_path, SMOKE_MODEL)
-                )
+                tasks.append(executor.submit(SMOKE_process_video_for_detections, input_path, SMOKE_MODEL))
 
-            # Collect results as tasks complete
-            for future in as_completed(tasks):
-                try:
-                    result = future.result()  
-                    if isinstance(result, tuple):  # For models with outputs (like crowd count)
-                        model_type, output = result
-                        responses[model_type] = str(output)  # Ensure values are JSON serializable
-                    else:
-                        # For other models like mask, queue, smoke
-                        responses[str(result)] = f"{result} detection logged successfully."
-                except Exception as e:
-                    responses['error'] = f"Error during processing: {str(e)}"
+        if file1:
+            input_path1 = os.path.join(app.config['UPLOAD_FOLDER'], file1.filename)
+            file1.save(input_path1)
+            process_video(file1, input_path1, selected_models_file1)
+        
+        if file2:
+            input_path2 = os.path.join(app.config['UPLOAD_FOLDER'], file2.filename)
+            file2.save(input_path2)
+            process_video(file2, input_path2, selected_models_file2)
+        
+        for future in as_completed(tasks):
+            try:
+                result = future.result()
+                if isinstance(result, tuple):
+                    model_type, output = result
+                    responses[model_type] = str(output)
+                else:
+                    responses[str(result)] = f"{result} detection logged successfully."
+            except Exception as e:
+                responses['error'] = f"Error during processing: {str(e)}"
+    
+    return jsonify({'message': 'Processing completed', 'results': responses})
 
-        return jsonify({'message': 'Processing completed', 'results': responses})
 
 @app.route('/download')
 def download_file():
@@ -811,10 +776,10 @@ def fetch_alerts():
                 if smoke_image and smoke_image[0]:
                     alert_dict['image'] = base64.b64encode(smoke_image[0]).decode('utf-8')
 
-            # Fetch image for "Queue" alerts from Smoking_Detection table
+            # Fetch image for "Queue" alerts from Mask_Detection table
             elif alert[2] == "No-Queue":
                 cursor.execute('''
-                    SELECT Image FROM Smoking_Detection
+                    SELECT Image FROM Queue_Detection
                     WHERE Camera_ID = ? ORDER BY Timestamp DESC LIMIT 1
                 ''', (alert[0],))
                 smoke_image = cursor.fetchone()

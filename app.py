@@ -10,7 +10,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from flask_cors import CORS
 import base64
 from datetime import datetime, timedelta
-
+import firebase_admin
+from firebase_admin import credentials, firestore
 
 # Initialize Flask app
 app = Flask(__name__)
@@ -37,6 +38,26 @@ os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['OUTPUT_FOLDER'] = OUTPUT_FOLDER
+
+
+# Initialize Firebase (replace 'path/to/serviceAccountKey.json' with your credentials)
+cred = credentials.Certificate('credentials.json')
+firebase_admin.initialize_app(cred)
+
+# Get Firestore client
+db = firestore.client()
+
+#CREATE FIRESTORE ALERTS TABLE
+def add_alert_to_firestore(camera_id, location_name, alert_type, detected_value, timestamp,status="pending"):
+    alert_ref = db.collection('alerts').document()  # Auto-generate document ID
+    alert_ref.set({
+        'camera_id': camera_id,
+        'location_name': location_name,
+        'alert_type': alert_type,
+        'detected_value': detected_value,
+        'timestamp': timestamp,
+        'status':status
+    })
 
 
 #INITIALIZE CACHE
@@ -115,21 +136,25 @@ def initialize_database():
             Location_Name TEXT NOT NULL,
             Alert_Type TEXT NOT NULL,
             Detected_Value INTEGER NOT NULL,
-            Timestamp TEXT NOT NULL
+            Timestamp TEXT NOT NULL,
+            Status TEXT NOT NULL       
         )
     ''')
     conn.commit()
     conn.close()
 
-#checking commit
-def log_alert(camera_id, location_name, alert_type, detected_value):
+#Logging Alerts
+def log_alert(camera_id, location_name, alert_type, detected_value,status="pending"):
+    #storing to firebase
+    add_alert_to_firestore(camera_id,location_name,alert_type,detected_value,status)
+    #Storing in sqlite as well to reduce API Hits
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
     timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     cursor.execute('''
-        INSERT INTO Alerts (Camera_ID, Location_Name, Alert_Type, Detected_Value, Timestamp)
-        VALUES (?, ?, ?, ?, ?)
-    ''', (camera_id, location_name, alert_type, detected_value, timestamp))
+        INSERT INTO Alerts (Camera_ID, Location_Name, Alert_Type, Detected_Value, Timestamp, Status)
+        VALUES (?, ?, ?, ?, ?, ?)
+    ''', (camera_id, location_name, alert_type, detected_value, timestamp, status))
     conn.commit()
     conn.close()
 
