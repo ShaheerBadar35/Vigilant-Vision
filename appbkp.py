@@ -10,14 +10,16 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from flask_cors import CORS
 import base64
 from datetime import datetime, timedelta
-
+import firebase_admin
+from firebase_admin import credentials, firestore
 
 # Initialize Flask app
 app = Flask(__name__)
 CORS(app)
 
 # Global flag to control live feed
-is_live_feed_running = False
+global is_live_feed_running
+is_live_feed_running = {"feed1": False, "feed2": False}
 
 # Load the models
 CROWD_MODEL = tf.saved_model.load('CC-Model/model')
@@ -36,6 +38,27 @@ os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['OUTPUT_FOLDER'] = OUTPUT_FOLDER
+
+
+# Initialize Firebase (replace 'path/to/serviceAccountKey.json' with your credentials)
+cred = credentials.Certificate('credentials.json')
+firebase_admin.initialize_app(cred)
+
+# Get Firestore client
+db = firestore.client()
+
+#CREATE FIRESTORE ALERTS TABLE
+def add_alert_to_firestore(camera_id, location_name, alert_type, detected_value, timestamp,status="pending"):
+    alert_ref = db.collection('alerts').document()  # Auto-generate document ID
+    alert_ref.set({
+        'camera_id': camera_id,
+        'location_name': location_name,
+        'alert_type': alert_type,
+        'detected_value': detected_value,
+        'timestamp': timestamp,
+        'status':status
+    })
+
 
 #INITIALIZE CACHE
 recent_detections_cache = {
@@ -113,21 +136,25 @@ def initialize_database():
             Location_Name TEXT NOT NULL,
             Alert_Type TEXT NOT NULL,
             Detected_Value INTEGER NOT NULL,
-            Timestamp TEXT NOT NULL
+            Timestamp TEXT NOT NULL,
+            Status TEXT NOT NULL       
         )
     ''')
     conn.commit()
     conn.close()
 
-
-def log_alert(camera_id, location_name, alert_type, detected_value):
+#Logging Alerts
+def log_alert(camera_id, location_name, alert_type, detected_value,status="pending"):
+    #storing to firebase
+    # add_alert_to_firestore(camera_id,location_name,alert_type,detected_value,status)
+    #Storing in sqlite as well to reduce API Hits
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
     timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     cursor.execute('''
-        INSERT INTO Alerts (Camera_ID, Location_Name, Alert_Type, Detected_Value, Timestamp)
-        VALUES (?, ?, ?, ?, ?)
-    ''', (camera_id, location_name, alert_type, detected_value, timestamp))
+        INSERT INTO Alerts (Camera_ID, Location_Name, Alert_Type, Detected_Value, Timestamp, Status)
+        VALUES (?, ?, ?, ?, ?, ?)
+    ''', (camera_id, location_name, alert_type, detected_value, timestamp, status))
     conn.commit()
     conn.close()
 
@@ -239,7 +266,7 @@ def CC_process_video_alternative(video_path, model, output_path, conf_threshold=
 frame_count = 0  # Global counter for frame skipping
 last_crowd_alert_time = None #GLOBAL counter to check last crowd alert
 
-def CC_process_webcam_feed(frame, model, conf_threshold=0.25,frame_skip=10,detection_threshold=5):
+def CC_process_webcam_feed(frame, model, conf_threshold=0.25,frame_skip=10,detection_threshold=1):
     """Process a single frame for people detection."""
     print("Processing frame for crowd detection...")
     print("Detection Threshold Received: ",detection_threshold)
@@ -650,28 +677,28 @@ def download_file():
 def webcam_feed():
     global is_live_feed_running
 
-    # Read JSON data from POST request
     data = request.json
     action = data.get('action')  # 'start' or 'stop'
+    feed_id = data.get('feed_id')  # 'feed1' or 'feed2'
     selected_models = data.get('models', [])
-    dct_thsh = int(data.get('threshold', 5))
-    print("Detection Threshold Given: ",dct_thsh)
+    detection_threshold = int(data.get('threshold', 5))
+
     if action == 'stop':
-        is_live_feed_running = False
-        return jsonify({'message': 'Live feed stopped.'})
+        is_live_feed_running[feed_id] = False
+        return jsonify({'message': f'Live feed {feed_id} stopped.'})
 
     if action == 'start':
         if not selected_models:
             return jsonify({'error': 'No model selected'}), 400
 
-        is_live_feed_running = True
+        is_live_feed_running[feed_id] = True
         responses = {}
+        camera_index = 0 if feed_id == "feed1" else 1
 
         try:
-            # Initialize the webcam
-            video_capture = cv2.VideoCapture(0)
+            video_capture = cv2.VideoCapture(camera_index)
             if not video_capture.isOpened():
-                return jsonify({'error': 'Unable to access webcam'}), 500
+                return jsonify({'error': f'Unable to access {feed_id}'}), 500
 
             def process_frame(frame):
                 tasks = []
@@ -679,7 +706,7 @@ def webcam_feed():
 
                 with ThreadPoolExecutor() as executor:
                     if 'crowd' in selected_models:
-                        tasks.append(executor.submit(CC_process_webcam_feed, frame, CROWD_MODEL,0.25,10,dct_thsh))
+                        tasks.append(executor.submit(CC_process_webcam_feed, frame, CROWD_MODEL, 0.25, 10, detection_threshold))
                     if 'mask' in selected_models:
                         tasks.append(executor.submit(MASK_detect_objects_from_webcam, frame, MASK_MODEL))
                     if 'queue' in selected_models:
@@ -699,7 +726,7 @@ def webcam_feed():
                             results['error'] = f"Error during processing: {str(e)}"
                 return results
 
-            while is_live_feed_running:
+            while is_live_feed_running[feed_id]:
                 ret, frame = video_capture.read()
                 if not ret:
                     break
@@ -707,8 +734,7 @@ def webcam_feed():
                 frame_results = process_frame(frame)
                 responses.update(frame_results)
 
-                # Display the processed frame (optional)
-                cv2.imshow('Live Feed', frame)
+                cv2.imshow(f'Live Feed - {feed_id}', frame)
 
                 if cv2.waitKey(1) & 0xFF == ord('q'):
                     break
@@ -720,7 +746,8 @@ def webcam_feed():
             video_capture.release()
             cv2.destroyAllWindows()
 
-        return jsonify({'message': 'Live feed processing completed', 'results': responses})
+        return jsonify({'message': f'Live feed {feed_id} processing completed', 'results': responses})
+
 @app.route('/alerts', methods=['GET'])
 def fetch_alerts():
     global last_crowd_alert_time

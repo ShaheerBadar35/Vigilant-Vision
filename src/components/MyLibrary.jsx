@@ -244,7 +244,7 @@ const MyLibrary = () => {
   const [isProcessing, setIsProcessing] = useState(false); // Track if processing is active
   const [startLiveFeed, setStartLiveFeed] = useState(false);
   const [isLiveFeedRunning, setIsLiveFeedRunning] = useState(false);
-  const [detectionThreshold, setDetectionThreshold] = useState(5); // New state for detection threshold
+  const [detectionThreshold, setDetectionThreshold] = useState(1); // New state for detection threshold
 
   const models = ["Crowd", "Queue", "Smoke", "Mask"]; // Define all models
 

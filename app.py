@@ -10,6 +10,9 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from flask_cors import CORS
 import base64
 from datetime import datetime, timedelta
+import firebase_admin
+from firebase_admin import credentials, firestore
+import time
 
 
 # Initialize Flask app
@@ -37,6 +40,26 @@ os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['OUTPUT_FOLDER'] = OUTPUT_FOLDER
+
+
+# Initialize Firebase (replace 'path/to/serviceAccountKey.json' with your credentials)
+cred = credentials.Certificate('credentials.json')
+firebase_admin.initialize_app(cred)
+
+# Get Firestore client
+db = firestore.client()
+
+#CREATE FIRESTORE ALERTS TABLE
+def add_alert_to_firestore(camera_id, location_name, alert_type, detected_value, timestamp,status="pending"):
+    alert_ref = db.collection('alerts').document()  # Auto-generate document ID
+    alert_ref.set({
+        'camera_id': camera_id,
+        'location_name': location_name,
+        'alert_type': alert_type,
+        'detected_value': detected_value,
+        'timestamp': timestamp,
+        'status':status
+    })
 
 
 #INITIALIZE CACHE
@@ -115,21 +138,25 @@ def initialize_database():
             Location_Name TEXT NOT NULL,
             Alert_Type TEXT NOT NULL,
             Detected_Value INTEGER NOT NULL,
-            Timestamp TEXT NOT NULL
+            Timestamp TEXT NOT NULL,
+            Status TEXT NOT NULL       
         )
     ''')
     conn.commit()
     conn.close()
 
-#checking commit
-def log_alert(camera_id, location_name, alert_type, detected_value):
+#Logging Alerts
+def log_alert(camera_id, location_name, alert_type, detected_value,status="pending"):
+    #storing to firebase
+    add_alert_to_firestore(camera_id,location_name,alert_type,detected_value,status)
+    #Storing in sqlite as well to reduce API Hits
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
     timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     cursor.execute('''
-        INSERT INTO Alerts (Camera_ID, Location_Name, Alert_Type, Detected_Value, Timestamp)
-        VALUES (?, ?, ?, ?, ?)
-    ''', (camera_id, location_name, alert_type, detected_value, timestamp))
+        INSERT INTO Alerts (Camera_ID, Location_Name, Alert_Type, Detected_Value, Timestamp, Status)
+        VALUES (?, ?, ?, ?, ?, ?)
+    ''', (camera_id, location_name, alert_type, detected_value, timestamp, status))
     conn.commit()
     conn.close()
 
@@ -163,7 +190,7 @@ def log_detection_to_db(camera_id, model_type, no_of_detections, image_data=None
 initialize_database()
 
 #CC MODELS FUNCTIONS
-def CC_process_video_alternative(video_path, model, output_path, conf_threshold=0.25, frame_skip=10, detection_threshold=5):
+def CC_process_video_alternative(video_path, model, output_path, conf_threshold=0.25, frame_skip=10, detection_threshold=5, cooldown_seconds=90, count_change_threshold=0):
     """Efficient frame-by-frame video processing, skipping frames periodically, with people detection."""
     print("CC UPLOAD VIDEO CALLED")
     cap = cv2.VideoCapture(video_path)
@@ -181,6 +208,9 @@ def CC_process_video_alternative(video_path, model, output_path, conf_threshold=
     frame_count = 0
     processed_frame_count = 0
     total_people_detected = 0
+    last_crowd_alert_time = 0
+    last_crowd_count = 0
+
     camera_id = os.path.basename(video_path)
 
     while cap.isOpened():
@@ -221,12 +251,23 @@ def CC_process_video_alternative(video_path, model, output_path, conf_threshold=
 
         total_people_detected += frame_people_detected
 
+        #---alerts cooldown logic for logging
+        current_time = time.time()
+        time_since_last_alert = current_time - last_crowd_alert_time
+        count_difference = abs(frame_people_detected - last_crowd_count)
+
         # If the detection threshold is exceeded, log to the database
         if frame_people_detected >= detection_threshold:
             print("Inside if, total ppl in this frame :",frame_people_detected)
             log_detection_to_db(camera_id,"crowd", frame_people_detected)
             location_name = "MainHall"  # Fetch location dynamically if needed
-            log_alert(camera_id, location_name, "Crowd", frame_people_detected)
+
+            #---alert cooldown using timestamp and state
+            if time_since_last_alert > cooldown_seconds:
+                if count_difference >=count_change_threshold and frame_people_detected > last_crowd_count:
+                    last_crowd_alert_time = time.time()
+                    last_crowd_count = frame_people_detected
+                    log_alert(camera_id, location_name, "Crowd", frame_people_detected)
 
 
         # Write processed frame to output video
@@ -238,10 +279,12 @@ def CC_process_video_alternative(video_path, model, output_path, conf_threshold=
     print(f"Total people detected: {total_people_detected}")
     return total_people_detected
 
-frame_count = 0  # Global counter for frame skipping
-last_crowd_alert_time = None #GLOBAL counter to check last crowd alert
 
-def CC_process_webcam_feed(frame, model, conf_threshold=0.25,frame_skip=10,detection_threshold=1):
+frame_count = 0  # Global counter for frame skipping
+last_crowd_alert_time = None # Global counter to check time of last crowd alert generation
+last_crowd_count = 0 # Global counter for last crowd count value
+
+def CC_process_webcam_feed(frame, model, conf_threshold=0.25, frame_skip=10, detection_threshold=1, cooldown_seconds=90, count_change_threshold=3):
     """Process a single frame for people detection."""
     print("Processing frame for crowd detection...")
     print("Detection Threshold Received: ",detection_threshold)
@@ -250,7 +293,7 @@ def CC_process_webcam_feed(frame, model, conf_threshold=0.25,frame_skip=10,detec
     total_people_detected_in_frame = 0
     
     # Skip frames to reduce computation
-    global frame_count
+    global frame_count, last_crowd_alert_time, last_crowd_count
     if frame_count % frame_skip != 0:
         frame_count += 1
         return "crowd", 0  # Skip processing and return zero detections
@@ -295,12 +338,23 @@ def CC_process_webcam_feed(frame, model, conf_threshold=0.25,frame_skip=10,detec
     # Display the processed frame
     #cv2.imshow('Webcam Feed', frame)
 
+    #----alert cooldown logic for logging
+    current_time = time.time()
+    time_since_last_alert = current_time - last_crowd_alert_time
+    count_difference = abs(total_people_detected_in_frame - last_crowd_count)
+
     # Log detections if threshold is met
     if total_people_detected_in_frame >= detection_threshold:
         log_detection_to_db("Webcam","crowd", total_people_detected_in_frame)
         location_name = "Webcam Location"  # Replace with dynamic location
-        log_alert("Webcam", location_name, "Crowd", total_people_detected_in_frame)
 
+
+        #---alert cooldown using timestamp and state
+        if time_since_last_alert > cooldown_seconds:
+            if count_difference >=count_change_threshold and total_people_detected_in_frame > last_crowd_count:
+                last_crowd_alert_time = time.time()
+                last_crowd_count = total_people_detected_in_frame
+                log_alert("Webcam", location_name, "Crowd", total_people_detected_in_frame)
 
     return "crowd", total_people_detected_in_frame
 
@@ -605,7 +659,7 @@ def upload_file():
         def process_video(file, input_path, selected_models):
             if 'crowd' in selected_models:
                 output_path_crowd = os.path.join(app.config['OUTPUT_FOLDER'], 'crowd_' + file.filename)
-                tasks.append(executor.submit(CC_process_video_alternative, input_path, CROWD_MODEL, output_path_crowd, 0.25, 10, detection_threshold))
+                tasks.append(executor.submit(CC_process_video_alternative, input_path, CROWD_MODEL, output_path_crowd, 0.25, 10, detection_threshold, 90, 0 ))
             if 'mask' in selected_models:
                 tasks.append(executor.submit(MASK_process_video_for_detections, input_path, MASK_MODEL))
             if 'queue' in selected_models:
@@ -681,7 +735,7 @@ def webcam_feed():
 
                 with ThreadPoolExecutor() as executor:
                     if 'crowd' in selected_models:
-                        tasks.append(executor.submit(CC_process_webcam_feed, frame, CROWD_MODEL, 0.25, 10, detection_threshold))
+                        tasks.append(executor.submit(CC_process_webcam_feed, frame, CROWD_MODEL, 0.25, 10, detection_threshold, 30, 3))
                     if 'mask' in selected_models:
                         tasks.append(executor.submit(MASK_detect_objects_from_webcam, frame, MASK_MODEL))
                     if 'queue' in selected_models:
