@@ -39,6 +39,9 @@ os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['OUTPUT_FOLDER'] = OUTPUT_FOLDER
 
+# Global cooldown settings (in seconds)
+ALERT_COOLDOWN = 15  # 45-second cooldown
+last_alert_cache = {}  # Key: (camera_id, alert_type), Value: last_timestamp
 
 # Initialize Firebase (replace 'path/to/serviceAccountKey.json' with your credentials)
 cred = credentials.Certificate('credentials.json')
@@ -145,8 +148,18 @@ def initialize_database():
 
 #Logging Alerts
 def log_alert(camera_id, location_name, alert_type, detected_value,status="pending"):
-    #storing to firebase
-    # add_alert_to_firestore(camera_id,location_name,alert_type,detected_value,status)
+    global last_alert_cache
+    current_time = datetime.now()
+
+    # Unique key for cooldown tracking
+    cache_key = (camera_id, alert_type)
+
+    # Check cooldown period    
+    last_time = last_alert_cache.get(cache_key)
+    if last_time and (current_time - last_time).total_seconds() < ALERT_COOLDOWN:
+        print(f"Cooldown active for {alert_type} (Camera {camera_id}). Skipping.")
+        return    
+
     #Storing in sqlite as well to reduce API Hits
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
@@ -157,6 +170,22 @@ def log_alert(camera_id, location_name, alert_type, detected_value,status="pendi
     ''', (camera_id, location_name, alert_type, detected_value, timestamp, status))
     conn.commit()
     conn.close()
+
+    #Storing Alerts also in Firebase
+    try:
+        add_alert_to_firestore(
+            camera_id, 
+            location_name, 
+            alert_type, 
+            detected_value, 
+            timestamp, 
+            status
+        )
+    except Exception as e:
+        print(f"Firestore write failed: {e}")    
+
+    # Update cooldown cache
+    last_alert_cache[cache_key] = current_time
 
 #LOGGING DATA IN DB
 def log_detection_to_db(camera_id, model_type, no_of_detections, image_data=None):

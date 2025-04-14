@@ -10,18 +10,20 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from flask_cors import CORS
 import base64
 from datetime import datetime, timedelta
-import firebase_admin
-from firebase_admin import credentials, firestore
+#import firebase_admin
+#from firebase_admin import credentials, firestore
+import time
 
-# Initialize Flask app
+
+#----- Initialize Flask app -----
 app = Flask(__name__)
 CORS(app)
 
-# Global flag to control live feed
+#----- Global flag to control live feed -----
 global is_live_feed_running
 is_live_feed_running = {"feed1": False, "feed2": False}
 
-# Load the models
+#----- Loading pre trained models -----
 CROWD_MODEL = tf.saved_model.load('CC-Model/model')
 MASK_MODEL = YOLO("Mask-Model/best.pt")
 QUEUE_MODEL = YOLO("Queue-Model/best.pt")
@@ -39,59 +41,60 @@ os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['OUTPUT_FOLDER'] = OUTPUT_FOLDER
 
-# Global cooldown settings (in seconds)
-ALERT_COOLDOWN = 15  # 45-second cooldown
-last_alert_cache = {}  # Key: (camera_id, alert_type), Value: last_timestamp
 
 # Initialize Firebase (replace 'path/to/serviceAccountKey.json' with your credentials)
-cred = credentials.Certificate('credentials.json')
-firebase_admin.initialize_app(cred)
+#cred = credentials.Certificate('credentials.json')
+#firebase_admin.initialize_app(cred)
 
 # Get Firestore client
-db = firestore.client()
+#db = firestore.client()
 
 #CREATE FIRESTORE ALERTS TABLE
-def add_alert_to_firestore(camera_id, location_name, alert_type, detected_value, timestamp,status="pending"):
-    alert_ref = db.collection('alerts').document()  # Auto-generate document ID
-    alert_ref.set({
-        'camera_id': camera_id,
-        'location_name': location_name,
-        'alert_type': alert_type,
-        'detected_value': detected_value,
-        'timestamp': timestamp,
-        'status':status
-    })
+# def add_alert_to_firestore(camera_id, location_name, alert_type, detected_value, timestamp,status="pending",action,timestamp):
+#     alert_ref = db.collection('alerts').document()  # Auto-generate document ID
+#     alert_ref.set({
+#         'camera_id': camera_id,
+#         'location_name': location_name,
+#         'alert_type': alert_type,
+#         'detected_value': detected_value,
+#         'timestamp': timestamp,
+#         'status':status
+#         'action': action,
+#         'timestamp': timestamp
+#     })
 
 
-#INITIALIZE CACHE
+#----- Cache initialization for tracking ids -----
 recent_detections_cache = {
     'mask': set(),
     'queue': set(),
     'smoke': set(),
-    'crowd': set()  # This will be used if track_id is available for Crowd Control
+    'crowd': set()  
 }
 
-# Initialize SQLite database
+#----- SQLite database initialization -----
 DB_NAME = 'VV.db'
 
 def initialize_database():
-    """Initialize the SQLite database and create the CrowdControl table."""
+
+    """Initializing SQLite database and creating tables."""
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
+    
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS CrowdControl (
             Detection_ID INTEGER PRIMARY KEY AUTOINCREMENT,
             Camera_ID TEXT NOT NULL,
-            Timestamp TEXT NOT NULL,
-            No_of_Detections INTEGER NOT NULL
+            No_of_Detections INTEGER NOT NULL,
+            Timestamp TEXT NOT NULL
         )
     ''')
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS Mask_Detection (
             Detection_ID INTEGER PRIMARY KEY AUTOINCREMENT,
             Camera_ID TEXT NOT NULL,
-            Timestamp TEXT NOT NULL,
             No_of_Detections INTEGER NOT NULL,
+            Timestamp TEXT NOT NULL,
             Image BLOB      
         )
     ''')
@@ -99,8 +102,8 @@ def initialize_database():
         CREATE TABLE IF NOT EXISTS Queue_Detection (
             Detection_ID INTEGER PRIMARY KEY AUTOINCREMENT,
             Camera_ID TEXT NOT NULL,
-            Timestamp TEXT NOT NULL,
             No_of_Detections INTEGER NOT NULL,
+            Timestamp TEXT NOT NULL,
             Image BLOB      
         )
     ''')
@@ -108,12 +111,11 @@ def initialize_database():
         CREATE TABLE IF NOT EXISTS Smoking_Detection (
             Detection_ID INTEGER PRIMARY KEY AUTOINCREMENT,
             Camera_ID TEXT NOT NULL,
-            Timestamp TEXT NOT NULL,
             No_of_Detections INTEGER NOT NULL,
+            Timestamp TEXT NOT NULL,
             Image BLOB      
         )
     ''')  
-    # New Camera Table
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS Camera (
             Camera_ID INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -122,111 +124,89 @@ def initialize_database():
             FOREIGN KEY (Location_ID) REFERENCES Location(Location_ID)
         )
     ''')
-
-    # New Location Table
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS Location (
             Location_ID INTEGER PRIMARY KEY AUTOINCREMENT,
             Location_Name TEXT NOT NULL UNIQUE
         )
     ''')
-
-    # New Alerts Table
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS Alerts (
             Alert_ID INTEGER PRIMARY KEY AUTOINCREMENT,
-            Camera_ID INTEGER NOT NULL,
+            Camera_ID INTEGER,
             Location_Name TEXT NOT NULL,
             Alert_Type TEXT NOT NULL,
-            Detected_Value INTEGER NOT NULL,
+            Detected_Value INTEGER,
+            Action TEXT NOT NULL,
             Timestamp TEXT NOT NULL,
-            Status TEXT NOT NULL       
+            Status TEXT,
+            Image BLOB      
         )
     ''')
     conn.commit()
     conn.close()
 
-#Logging Alerts
-def log_alert(camera_id, location_name, alert_type, detected_value,status="pending"):
-    global last_alert_cache
-    current_time = datetime.now()
+#----- Logging alerts in db -----
+def log_alert(location_name, alert_type, action, timestamp, camera_id=None, detected_value=None, image=None, status="pending"):
 
-    # Unique key for cooldown tracking
-    cache_key = (camera_id, alert_type)
+    # storing to firebase
+    #add_alert_to_firestore(camera_id,location_name,alert_type,detected_value,status,action,timestamp)
 
-    # Check cooldown period    
-    last_time = last_alert_cache.get(cache_key)
-    if last_time and (current_time - last_time).total_seconds() < ALERT_COOLDOWN:
-        print(f"Cooldown active for {alert_type} (Camera {camera_id}). Skipping.")
-        return    
-
-    #Storing in sqlite as well to reduce API Hits
+    # storing in sqlite as well to reduce API Hits
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
-    timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
     cursor.execute('''
-        INSERT INTO Alerts (Camera_ID, Location_Name, Alert_Type, Detected_Value, Timestamp, Status)
-        VALUES (?, ?, ?, ?, ?, ?)
-    ''', (camera_id, location_name, alert_type, detected_value, timestamp, status))
+        INSERT INTO Alerts (Camera_ID, Location_Name, Alert_Type, Detected_Value, Action, Timestamp, Status, Image)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    ''', (camera_id, location_name, alert_type, detected_value, action, timestamp, status, image))
     conn.commit()
     conn.close()
 
-    #Storing Alerts also in Firebase
-    try:
-        add_alert_to_firestore(
-            camera_id, 
-            location_name, 
-            alert_type, 
-            detected_value, 
-            timestamp, 
-            status
-        )
-    except Exception as e:
-        print(f"Firestore write failed: {e}")    
-
-    # Update cooldown cache
-    last_alert_cache[cache_key] = current_time
-
-#LOGGING DATA IN DB
+#----- Logging detections/data in db -----
 def log_detection_to_db(camera_id, model_type, no_of_detections, image_data=None):
+
     conn = sqlite3.connect('VV.db')
     cursor = conn.cursor()
     timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
     print("INSIDE LOG DETECTION DB")
+
     if model_type == "crowd":
         print("Crowd Data logged in DB")
-        cursor.execute('''INSERT INTO CrowdControl (Camera_ID, Timestamp, No_of_Detections) VALUES (?, ?, ?)''',
-                       (camera_id, timestamp, no_of_detections))
+        cursor.execute('''INSERT INTO CrowdControl (Camera_ID, No_of_Detections, Timestamp ) VALUES (?, ?, ?)''',
+                       (camera_id, no_of_detections, timestamp ))
     elif model_type == "mask":
         print("Mask Data logged in DB")
-        cursor.execute('''INSERT INTO Mask_Detection (Camera_ID, Timestamp, No_of_Detections, Image) VALUES (?, ?, ?, ?)''',
-                       (camera_id, timestamp, no_of_detections, image_data))
+        cursor.execute('''INSERT INTO Mask_Detection (Camera_ID, No_of_Detections, Timestamp, Image) VALUES (?, ?, ?, ?)''',
+                       (camera_id, no_of_detections, timestamp, image_data))
     elif model_type == "queue":
         print("QUEUE Data logged in DB")
-        cursor.execute('''INSERT INTO Queue_Detection (Camera_ID, Timestamp, No_of_Detections, Image) VALUES (?, ?, ?, ?)''',
-                       (camera_id, timestamp, no_of_detections, image_data))
+        cursor.execute('''INSERT INTO Queue_Detection (Camera_ID, No_of_Detections, Timestamp, Image) VALUES (?, ?, ?, ?)''',
+                       (camera_id, no_of_detections, timestamp, image_data))
     elif model_type == "smoke":
         print("Smoke Data logged in DB")
-        cursor.execute('''INSERT INTO Smoking_Detection (Camera_ID, Timestamp, No_of_Detections, Image) VALUES (?, ?, ?, ?)''',
-                       (camera_id, timestamp, no_of_detections, image_data))
+        cursor.execute('''INSERT INTO Smoking_Detection (Camera_ID, No_of_Detections, Timestamp, Image) VALUES (?, ?, ?, ?)''',
+                       (camera_id, no_of_detections, timestamp, image_data))
     
     conn.commit()
     conn.close()
 
-# Call this once to initialize the database
+#----- Initialize the database -----
 initialize_database()
 
-#CC MODELS FUNCTIONS
-def CC_process_video_alternative(video_path, model, output_path, conf_threshold=0.25, frame_skip=10, detection_threshold=5):
+#----- CrowdCount Model processing function -----
+def CC_process_video_alternative(video_path, model, output_path, conf_threshold=0.25, frame_skip=10, detection_threshold=37, cooldown_seconds=90, count_change_threshold=3):
+    
     """Efficient frame-by-frame video processing, skipping frames periodically, with people detection."""
     print("CC UPLOAD VIDEO CALLED")
+
     cap = cv2.VideoCapture(video_path)
     frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     fps = int(cap.get(cv2.CAP_PROP_FPS))
     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
 
-    # Use the 'mp4v' codec for MP4 files
     out = cv2.VideoWriter(output_path, cv2.VideoWriter_fourcc(*'mp4v'), fps, (frame_width, frame_height))
 
     print(f"Processing video: {video_path}")
@@ -235,6 +215,10 @@ def CC_process_video_alternative(video_path, model, output_path, conf_threshold=
     frame_count = 0
     processed_frame_count = 0
     total_people_detected = 0
+    last_crowd_alert_time = 0
+    last_crowd_count = 0
+    last_threshold_check_time = 0
+
     camera_id = os.path.basename(video_path)
 
     while cap.isOpened():
@@ -242,7 +226,7 @@ def CC_process_video_alternative(video_path, model, output_path, conf_threshold=
         if not ret:
             break
 
-        # Skip frames based on frame_skip
+        # skiping frames to reduce computation
         if frame_count % frame_skip != 0:
             frame_count += 1
             continue
@@ -250,21 +234,21 @@ def CC_process_video_alternative(video_path, model, output_path, conf_threshold=
         frame_count += 1
         processed_frame_count += 1
 
-        # Convert BGR frame (OpenCV) to RGB for TensorFlow
+        # converting BGR frame (OpenCV) to RGB for TensorFlow
         rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         input_tensor = tf.convert_to_tensor(rgb_frame, dtype=tf.uint8)[tf.newaxis, ...]
 
-        # Detect objects
+        # detecting objects
         results = model(input_tensor)
 
-        # Draw bounding boxes for detections
+        # bounding boxes for detections
         boxes = results['detection_boxes'].numpy()[0]
         classes = results['detection_classes'].numpy()[0]
         scores = results['detection_scores'].numpy()[0]
 
         frame_people_detected = 0
 
-        # Count the number of people detected in this frame
+        # counting number of people detected in this frame
         for i in range(int(results['num_detections'][0])):
             if classes[i] == 1 and scores[i] > conf_threshold:
                 ymin, xmin, ymax, xmax = boxes[i]
@@ -275,12 +259,36 @@ def CC_process_video_alternative(video_path, model, output_path, conf_threshold=
 
         total_people_detected += frame_people_detected
 
-        # If the detection threshold is exceeded, log to the database
+        # alerts cooldown logic for logging in db
+        current_time = time.time()
+        time_since_last_alert = current_time - last_crowd_alert_time
+        count_difference = abs(frame_people_detected - last_crowd_count)
+        time_since_last_threshold = current_time - last_threshold_check_time
+
+
+        # 1-If the detection threshold is exceeded
         if frame_people_detected >= detection_threshold:
             print("Inside if, total ppl in this frame :",frame_people_detected)
-            log_detection_to_db(camera_id,"crowd", frame_people_detected)
-            location_name = "MainHall"  # Fetch location dynamically if needed
-            log_alert(camera_id, location_name, "Crowd", frame_people_detected)
+            log_detection_to_db(camera_id,"Crowd", frame_people_detected)
+            
+
+            # alert cooldown using 2-timer and 3-state
+            if time_since_last_alert > cooldown_seconds:
+                if count_difference >=count_change_threshold and frame_people_detected > last_crowd_count:
+                    
+                    last_crowd_alert_time = time.time()
+                    last_crowd_count = frame_people_detected
+
+                    location_name = "MainHall"  
+                    action = "Overcrowding! Guide attendees to other Location"
+                    timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                    log_alert(location_name, "Crowd", action, timestamp, camera_id, frame_people_detected)
+
+        # resets after situation is normalized     
+        else:
+            if time_since_last_threshold > 180:
+                last_crowd_count = 0
+                last_threshold_check_time = time.time()
 
 
         # Write processed frame to output video
@@ -292,41 +300,42 @@ def CC_process_video_alternative(video_path, model, output_path, conf_threshold=
     print(f"Total people detected: {total_people_detected}")
     return total_people_detected
 
-frame_count = 0  # Global counter for frame skipping
-last_crowd_alert_time = None #GLOBAL counter to check last crowd alert
 
-def CC_process_webcam_feed(frame, model, conf_threshold=0.25,frame_skip=10,detection_threshold=1):
+frame_count = 0  # Global counter for frame skipping
+last_crowd_alert_time = 0 # Global counter to check time of last crowd alert generation
+last_crowd_count = 0 # Global counter for last crowd count value
+last_threshold_check_time = 0 # Global counter for checking if situation is normal
+
+def CC_process_webcam_feed(frame, model, conf_threshold=0.25, frame_skip=10, detection_threshold=37, cooldown_seconds=90, count_change_threshold=3):
+   
     """Process a single frame for people detection."""
     print("Processing frame for crowd detection...")
     print("Detection Threshold Received: ",detection_threshold)
     print("Confidence Threshold: ",conf_threshold)
-    # Initialize counters
+    
     total_people_detected_in_frame = 0
     
-    # Skip frames to reduce computation
-    global frame_count
+    # skiping frames to reduce computation
+    global frame_count, last_crowd_alert_time, last_crowd_count
     if frame_count % frame_skip != 0:
         frame_count += 1
-        return "crowd", 0  # Skip processing and return zero detections
+        return "crowd", 0  
 
     frame_count += 1
 
-    # Convert BGR frame (OpenCV) to RGB for TensorFlow
+    # converting BGR frame (OpenCV) to RGB for TensorFlow
     rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
     input_tensor = tf.convert_to_tensor(rgb_frame, dtype=tf.uint8)[tf.newaxis, ...]
 
-    # Detect objects
+    # detecting objects
     results = model(input_tensor)
 
-    # Extract detections
+    # bounding boxes for detections
     boxes = results['detection_boxes'].numpy()[0]
-    # print("BOXES:",boxes)
     classes = results['detection_classes'].numpy()[0]
-    # print("ClASSes:",classes)
     scores = results['detection_scores'].numpy()[0]
-    # print("Scores: ",scores)
 
-    # Count the number of people detected in this frame
+    # counting number of people detected in this frame
     print("total detects: ",int(results['num_detections'][0]))
     for i in range(int(results['num_detections'][0])):
         if classes[i] == 1 and scores[i] > conf_threshold:
@@ -334,7 +343,7 @@ def CC_process_webcam_feed(frame, model, conf_threshold=0.25,frame_skip=10,detec
 
     print(f"Total people detected in current frame: {total_people_detected_in_frame}")
 
-    # Draw bounding boxes for detections
+    # bounding boxes for detections
     for i in range(int(results['num_detections'][0])):
         if classes[i] == 1 and scores[i] > conf_threshold:
             ymin, xmin, ymax, xmax = boxes[i]
@@ -349,20 +358,44 @@ def CC_process_webcam_feed(frame, model, conf_threshold=0.25,frame_skip=10,detec
     # Display the processed frame
     #cv2.imshow('Webcam Feed', frame)
 
-    # Log detections if threshold is met
-    if total_people_detected_in_frame >= detection_threshold:
-        log_detection_to_db("Webcam","crowd", total_people_detected_in_frame)
-        location_name = "Webcam Location"  # Replace with dynamic location
-        log_alert("Webcam", location_name, "Crowd", total_people_detected_in_frame)
+    # alerts cooldown logic for logging in db
 
+    current_time = time.time()
+    time_since_last_alert = current_time - last_crowd_alert_time
+    count_difference = abs(total_people_detected_in_frame - last_crowd_count)
+    time_since_last_threshold = current_time - last_threshold_check_time
+
+    # 1-If the detection threshold is exceeded
+    if total_people_detected_in_frame >= detection_threshold:
+        log_detection_to_db("Webcam","Crowd", total_people_detected_in_frame)
+        
+        # alert cooldown using 2-timer and 3-state
+        if time_since_last_alert > cooldown_seconds:
+            if count_difference >=count_change_threshold and total_people_detected_in_frame > last_crowd_count:
+                    
+                last_crowd_alert_time = time.time()
+                last_crowd_count = total_people_detected_in_frame
+
+                timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                action = "Overcrowding! Guide attendees to other Location"
+                location_name = "Webcam Location"  # Replace with dynamic location
+                log_alert(location_name, "Crowd", action, timestamp, "Webcam", total_people_detected_in_frame)
+
+        # resets after situation is normalized     
+    else:
+        if time_since_last_threshold > 180:
+            last_crowd_count = 0
+            last_threshold_check_time = time.time()
 
     return "crowd", total_people_detected_in_frame
 
+last_mask_alert_time = 0
 #MASK MODEL FUNCTIONS
-def MASK_detect_objects_from_webcam(frame, model):
+def MASK_detect_objects_from_webcam(frame, model, cooldown_seconds = 0):
     """Process a single frame for mask-wearing detection without duplicate logging."""
     print("MASK OBJECTS FROM WEB")
     no_mask_detections = 0
+
     frame = cv2.resize(frame, (1020, 600))  # Resize the frame
 
     results = model.track(frame, persist=True)
@@ -378,26 +411,47 @@ def MASK_detect_objects_from_webcam(frame, model):
             cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
             cv2.putText(frame, f'{track_id} - {label}', (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
 
+            current_time = time.time()
             # Check and log detection
             if label.lower() in ["without_mask", "mask_weared_incorrect"]:
                 if track_id not in recent_detections_cache['mask']:
                     recent_detections_cache['mask'].add(track_id)
                     no_mask_detections += 1
 
-                    _, image_buffer = cv2.imencode('.jpg', frame)
-                    image_data = image_buffer.tobytes()
+                    # _, image_buffer = cv2.imencode('.jpg', frame)
+                    # image_data = image_buffer.tobytes()
+                    # Crop the bounding box from the frame
+                    cropped_face = frame[y1:y2, x1:x2]
+
+                    # Encode the cropped image instead of the full frame
+                    _, image_buffer = cv2.imencode('.jpg', cropped_face)
+                    image_data = image_buffer.tobytes()                    
                     log_detection_to_db("Webcam", "mask", no_mask_detections, image_data)
-                    location_name = "MainHall"  # Fetch location dynamically if needed
-                    log_alert("Webcam", location_name, "No-Mask", no_mask_detections)
+
+                    if (current_time - last_mask_alert_time) > cooldown_seconds:
+
+                        timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                        action = "Take action against attendees with no mask"
+                        location_name = "Webcam Location"  # Replace with dynamic location
+                        log_alert(location_name, "No-Mask", action, timestamp, "Webcam", no_mask_detections)
 
     return no_mask_detections
 
-def MASK_process_video_for_detections(video_path,model):
+
+def MASK_process_video_for_detections(video_path,model, cooldown_seconds= 0):
     print("MASK UPLOAD CALLED")
     """Process a video for mask detections and save snapshots to the database."""
     cap = cv2.VideoCapture(video_path)
     count = 0
+    last_alert_time = 0
+    no_mask_detections = 0
     camera_id = os.path.basename(video_path)  # Use the video filename as the camera ID
+
+    # Output video setup
+    fourcc = cv2.VideoWriter_fourcc(*'mp4v')  # Codec
+    output_path = f"output_videos/{camera_id}_mask_annotated.mp4"
+    os.makedirs("output_videos", exist_ok=True)  # Create folder if not exists
+    out = cv2.VideoWriter(output_path, fourcc, 15.0, (1020, 600))  # (fps, frame size)
 
     # Cache to store track IDs of recently detected "No Queue" persons
     recent_detections = set()
@@ -431,24 +485,40 @@ def MASK_process_video_for_detections(video_path,model):
                 cv2.putText(frame, f'{track_id} - {label}', (x1, y1 - 10),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
 
+                current_time = time.time()
                 # Check for "No Queue" class (Assume class 1 = "No Queue")
                 if label.lower() in ["without_mask", "mask_weared_incorrect"] and track_id not in recent_detections:
                     recent_detections.add(track_id)  # Add to cache
+                    no_mask_detections += 1
 
                     # Save the frame with bounding boxes as an image
-                    _, image_buffer = cv2.imencode('.jpg', frame)
-                    image_data = image_buffer.tobytes()
+                    # _, image_buffer = cv2.imencode('.jpg', frame)
+                    # image_data = image_buffer.tobytes()
+                    
+                    cropped_face = frame[y1:y2, x1:x2]
 
+                    # Encode the cropped image instead of the full frame
+                    _, image_buffer = cv2.imencode('.jpg', cropped_face)
+                    image_data = image_buffer.tobytes()  
                     # Log detection to the database
                     log_detection_to_db(camera_id, "mask", 1, image_data)
-                    location_name = "MainHall"  # Fetch dynamically if needed
-                    log_alert(camera_id, location_name, "Mask", 1)
 
+                    if (current_time - last_alert_time) > cooldown_seconds:
+                        timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                        action = "Take action against attendees with no mask"
+                        location_name = "Webcam Location"  # Replace with dynamic location
+                        log_alert(location_name, "No-Mask", action, timestamp, "Webcam", 1)
+
+        # Write annotated frame to output video
+        out.write(frame)
 
     cap.release()
+    out.release()
+    print(f"✅ Saved output video to: {output_path}")
 
-#QUEUE MODEL FUNCTIONS
-def QUEUE_detect_objects_from_webcam(frame, model):
+last_queue_alert_time = 0
+#QUEUE MODEL FUNCTIONS 
+def QUEUE_detect_objects_from_webcam(frame, model, cooldown_seconds= 0):
     """Process a single frame for queue detection without duplicate logging."""
     print("QUEUE OBJECT FROM WEB")
     no_queue_detections = 0
@@ -467,6 +537,8 @@ def QUEUE_detect_objects_from_webcam(frame, model):
             cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
             cv2.putText(frame, f'{track_id} - {label}', (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
 
+            current_time = time.time()
+
             # Check and log detection
             if label.lower() == "no-queue":
                 if track_id not in recent_detections_cache['queue']:
@@ -476,20 +548,33 @@ def QUEUE_detect_objects_from_webcam(frame, model):
                     _, image_buffer = cv2.imencode('.jpg', frame)
                     image_data = image_buffer.tobytes()
                     log_detection_to_db("Webcam", "queue", no_queue_detections, image_data)
-                    location_name = "MainHall"  # Fetch location dynamically if needed
-                    log_alert("Webcam", location_name, "No-Queue", no_queue_detections)                    
+
+                    if (current_time - last_queue_alert_time) > cooldown_seconds:
+
+                        timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                        action = "Ensure attendees form queue"
+                        location_name = "Webcam Location"  # Replace with dynamic location
+                        log_alert(location_name, "No-Queue", action, timestamp, "Webcam", no_queue_detections)                 
 
     return no_queue_detections
 
-def QUEUE_process_video_for_detections(video_path,model):
-    """Process a video for mask detections and save snapshots to the database."""
+def QUEUE_process_video_for_detections(video_path, model, cooldown_seconds=0):
+    """Process a video for no queue detections and save snapshots to the database."""
     print("QUEUE UPLOAD VIDEO Called")
     cap = cv2.VideoCapture(video_path)
     count = 0
     camera_id = os.path.basename(video_path)  # Use the video filename as the camera ID
 
+    # Output video setup
+    fourcc = cv2.VideoWriter_fourcc(*'mp4v')  # Codec
+    output_path = f"output_videos/{camera_id}_queue_annotated.mp4"
+    os.makedirs("output_videos", exist_ok=True)  # Create folder if not exists
+    out = cv2.VideoWriter(output_path, fourcc, 15.0, (1020, 600))  # (fps, frame size)
+
+
     # Cache to store track IDs of recently detected "No Queue" persons
     recent_detections = set()
+    last_alert_time = 0
 
     while cap.isOpened():
         ret, frame = cap.read()
@@ -519,7 +604,8 @@ def QUEUE_process_video_for_detections(video_path,model):
                 cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
                 cv2.putText(frame, f'{track_id} - {label}', (x1, y1 - 10),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
-
+                
+                current_time = time.time()
                 # Check for "No Queue" class (Assume class 1 = "No Queue")
                 if label.lower() == "no-queue" and track_id not in recent_detections:
                     recent_detections.add(track_id)  # Add to cache
@@ -530,16 +616,27 @@ def QUEUE_process_video_for_detections(video_path,model):
 
                     # Log detection to the database
                     print("LOG DETECTION TO DB OF QUEUE SHOULD BE CALLED")
-                    log_detection_to_db(camera_id, "queue", 1, image_data)
-                    location_name = "MainHall"  # Fetch dynamically
-                    print("LOG ALERTS OF QUEUE MUST BE CALLED")
-                    log_alert(camera_id, location_name, "Queue", 1)
+                    log_detection_to_db(camera_id,"queue", 1, image_data)
 
+                    if (current_time - last_alert_time) > cooldown_seconds:
+                        print("---------------1-------------")
+
+                        timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                        action = "Ensure attendees form queue"
+                        location_name = "Webcam Location"  # Replace with dynamic location
+                        log_alert(location_name, "No-Queue", action, timestamp, "Webcam", 1)
+
+        # Write annotated frame to output video
+        out.write(frame)
 
     cap.release()
+    out.release()
+    print(f"✅ Saved output video to: {output_path}")
+
+last_smoke_alert_time = 0
 
 #SMOKE MODEL FUNCTIONS
-def SMOKE_detect_objects_from_webcam(frame, model):
+def SMOKE_detect_objects_from_webcam(frame, model, cooldown_seconds = 0):
     """Process a single frame for smoke detection without duplicate logging."""
     print("SMOKE OBJECTS FROM WEB")
     smoke_detections = 0
@@ -562,6 +659,8 @@ def SMOKE_detect_objects_from_webcam(frame, model):
             cv2.putText(frame, f'{track_id} - {label}', (x1, y1 - 10),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
 
+            current_time = time.time()
+
             # Check and log detection
             if label.lower() in ["cigarette", "smoke"]:
                 if track_id not in recent_detections_cache['smoke']:
@@ -574,16 +673,28 @@ def SMOKE_detect_objects_from_webcam(frame, model):
 
                     # Log the detection into the database
                     log_detection_to_db("Webcam", "smoke", smoke_detections, image_data)
-                    location_name = "MainHall"  # Fetch location dynamically if needed
-                    log_alert("Webcam", location_name, "Smoking", smoke_detections)
+
+                    if (current_time - last_smoke_alert_time) > cooldown_seconds:
+
+                        timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                        action = "Take action against attendees smoking"
+                        location_name = "Webcam Location"  # Replace with dynamic location
+                        log_alert(location_name, "Smoke", action, timestamp, "Webcam", smoke_detections)
             
     return smoke_detections
 
-def SMOKE_process_video_for_detections(video_path,model):
+def SMOKE_process_video_for_detections(video_path,model, cooldown_seconds = 0):
     """Process a video for mask detections and save snapshots to the database."""
     cap = cv2.VideoCapture(video_path)
+    last_alert_time = 0
     count = 0
     camera_id = os.path.basename(video_path)  # Use the video filename as the camera ID
+
+        # Output video setup
+    fourcc = cv2.VideoWriter_fourcc(*'mp4v')  # Codec
+    output_path = f"output_videos/{camera_id}_queue_annotated.mp4"
+    os.makedirs("output_videos", exist_ok=True)  # Create folder if not exists
+    out = cv2.VideoWriter(output_path, fourcc, 15.0, (1020, 600))  # (fps, frame size)
 
     # Cache to store track IDs of recently detected "No Queue" persons
     recent_detections = set()
@@ -617,6 +728,7 @@ def SMOKE_process_video_for_detections(video_path,model):
                 cv2.putText(frame, f'{track_id} - {label}', (x1, y1 - 10),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
 
+                current_time = time.time()
                 # Check for "No Queue" class (Assume class 1 = "No Queue")
                 if label.lower() in ["cigarette", "smoke"] and track_id not in recent_detections:
                     recent_detections.add(track_id)  # Add to cache
@@ -627,10 +739,20 @@ def SMOKE_process_video_for_detections(video_path,model):
 
                     # Log detection to the database
                     log_detection_to_db(camera_id, "smoke", 1, image_data)
-                    location_name = "MainHall"  # Fetch dynamically
-                    log_alert(camera_id, location_name, "Smoke", 1)
+
+                    if (current_time - last_alert_time) > cooldown_seconds:
+                        timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                        action = "Take action against attendees smoking"
+                        location_name = "Webcam Location"  # Replace with dynamic location
+                        log_alert(location_name, "Smoke", action, timestamp, "Webcam", 1)
+
+        # Write annotated frame to output video
+        out.write(frame)
 
     cap.release()
+    out.release()
+    print(f"✅ Saved output video to: {output_path}")
+
 
 #FLASK ROUTING
 @app.route('/')
@@ -648,7 +770,7 @@ def upload_file():
     
     selected_models_file1 = request.form.getlist('models_file1')
     selected_models_file2 = request.form.getlist('models_file2')
-    detection_threshold = int(request.form.get('threshold', 5))
+    detection_threshold = int(request.form.get('threshold', 37))
     
     if not selected_models_file1 and not selected_models_file2:
         return jsonify({'error': 'No model selected'}), 400
@@ -659,13 +781,13 @@ def upload_file():
         def process_video(file, input_path, selected_models):
             if 'crowd' in selected_models:
                 output_path_crowd = os.path.join(app.config['OUTPUT_FOLDER'], 'crowd_' + file.filename)
-                tasks.append(executor.submit(CC_process_video_alternative, input_path, CROWD_MODEL, output_path_crowd, 0.25, 10, detection_threshold))
+                tasks.append(executor.submit(CC_process_video_alternative, input_path, CROWD_MODEL, output_path_crowd, 0.25, 10, detection_threshold, 90, 0 ))
             if 'mask' in selected_models:
-                tasks.append(executor.submit(MASK_process_video_for_detections, input_path, MASK_MODEL))
+                tasks.append(executor.submit(MASK_process_video_for_detections, input_path, MASK_MODEL, 0))
             if 'queue' in selected_models:
-                tasks.append(executor.submit(QUEUE_process_video_for_detections, input_path, QUEUE_MODEL))
+                tasks.append(executor.submit(QUEUE_process_video_for_detections, input_path, QUEUE_MODEL, 0 ))
             if 'smoke' in selected_models:
-                tasks.append(executor.submit(SMOKE_process_video_for_detections, input_path, SMOKE_MODEL))
+                tasks.append(executor.submit(SMOKE_process_video_for_detections, input_path, SMOKE_MODEL, 0))
 
         if file1:
             input_path1 = os.path.join(app.config['UPLOAD_FOLDER'], file1.filename)
@@ -735,13 +857,13 @@ def webcam_feed():
 
                 with ThreadPoolExecutor() as executor:
                     if 'crowd' in selected_models:
-                        tasks.append(executor.submit(CC_process_webcam_feed, frame, CROWD_MODEL, 0.25, 10, detection_threshold))
+                        tasks.append(executor.submit(CC_process_webcam_feed, frame, CROWD_MODEL, 0.25, 10, detection_threshold, 30, 3))
                     if 'mask' in selected_models:
-                        tasks.append(executor.submit(MASK_detect_objects_from_webcam, frame, MASK_MODEL))
+                        tasks.append(executor.submit(MASK_detect_objects_from_webcam, frame, MASK_MODEL, 0))
                     if 'queue' in selected_models:
-                        tasks.append(executor.submit(QUEUE_detect_objects_from_webcam, frame, QUEUE_MODEL))
+                        tasks.append(executor.submit(QUEUE_detect_objects_from_webcam, frame, QUEUE_MODEL, 0))
                     if 'smoke' in selected_models:
-                        tasks.append(executor.submit(SMOKE_detect_objects_from_webcam, frame, SMOKE_MODEL))
+                        tasks.append(executor.submit(SMOKE_detect_objects_from_webcam, frame, SMOKE_MODEL, 0))
 
                     for future in as_completed(tasks):
                         try:
