@@ -50,7 +50,7 @@ app.config['OUTPUT_FOLDER'] = OUTPUT_FOLDER
 #db = firestore.client()
 
 #CREATE FIRESTORE ALERTS TABLE
-# def add_alert_to_firestore(camera_id, location_name, alert_type, detected_value, timestamp,status="pending"):
+# def add_alert_to_firestore(camera_id, location_name, alert_type, detected_value, timestamp,status="pending",action,timestamp):
 #     alert_ref = db.collection('alerts').document()  # Auto-generate document ID
 #     alert_ref.set({
 #         'camera_id': camera_id,
@@ -59,6 +59,8 @@ app.config['OUTPUT_FOLDER'] = OUTPUT_FOLDER
 #         'detected_value': detected_value,
 #         'timestamp': timestamp,
 #         'status':status
+#         'action': action,
+#         'timestamp': timestamp
 #     })
 
 
@@ -148,7 +150,7 @@ def initialize_database():
 def log_alert(location_name, alert_type, action, timestamp, camera_id=None, detected_value=None, image=None, status="pending"):
 
     # storing to firebase
-    #add_alert_to_firestore(camera_id,location_name,alert_type,detected_value,status)
+    #add_alert_to_firestore(camera_id,location_name,alert_type,detected_value,status,action,timestamp)
 
     # storing in sqlite as well to reduce API Hits
     conn = sqlite3.connect(DB_NAME)
@@ -314,7 +316,6 @@ def CC_process_webcam_feed(frame, model, conf_threshold=0.25, frame_skip=10, det
     total_people_detected_in_frame = 0
     
     # skiping frames to reduce computation
-    global frame_count, last_crowd_alert_time, last_crowd_count
     if frame_count % frame_skip != 0:
         frame_count += 1
         return "crowd", 0  
@@ -416,12 +417,19 @@ def MASK_detect_objects_from_webcam(frame, model, cooldown_seconds = 0):
                     recent_detections_cache['mask'].add(track_id)
                     no_mask_detections += 1
 
-                    _, image_buffer = cv2.imencode('.jpg', frame)
-                    image_data = image_buffer.tobytes()
+                    # _, image_buffer = cv2.imencode('.jpg', frame)
+                    # image_data = image_buffer.tobytes()
+                    # Crop the bounding box from the frame
+                    cropped_face = frame[y1:y2, x1:x2]
+
+                    # Encode the cropped image instead of the full frame
+                    _, image_buffer = cv2.imencode('.jpg', cropped_face)
+                    image_data = image_buffer.tobytes()                    
                     log_detection_to_db("Webcam", "mask", no_mask_detections, image_data)
 
                     if (current_time - last_mask_alert_time) > cooldown_seconds:
 
+                        last_mask_alert_time = time.time()
                         timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                         action = "Take action against attendees with no mask"
                         location_name = "Webcam Location"  # Replace with dynamic location
@@ -484,13 +492,20 @@ def MASK_process_video_for_detections(video_path,model, cooldown_seconds= 0):
                     no_mask_detections += 1
 
                     # Save the frame with bounding boxes as an image
-                    _, image_buffer = cv2.imencode('.jpg', frame)
-                    image_data = image_buffer.tobytes()
+                    # _, image_buffer = cv2.imencode('.jpg', frame)
+                    # image_data = image_buffer.tobytes()
+                    
+                    cropped_face = frame[y1:y2, x1:x2]
 
+                    # Encode the cropped image instead of the full frame
+                    _, image_buffer = cv2.imencode('.jpg', cropped_face)
+                    image_data = image_buffer.tobytes()  
                     # Log detection to the database
                     log_detection_to_db(camera_id, "mask", 1, image_data)
 
                     if (current_time - last_alert_time) > cooldown_seconds:
+
+                        last_alert_time = time.time()
                         timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                         action = "Take action against attendees with no mask"
                         location_name = "Webcam Location"  # Replace with dynamic location
@@ -538,6 +553,7 @@ def QUEUE_detect_objects_from_webcam(frame, model, cooldown_seconds= 0):
 
                     if (current_time - last_queue_alert_time) > cooldown_seconds:
 
+                        last_queue_alert_time = time.time()
                         timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                         action = "Ensure attendees form queue"
                         location_name = "Webcam Location"  # Replace with dynamic location
@@ -606,8 +622,8 @@ def QUEUE_process_video_for_detections(video_path, model, cooldown_seconds=0):
                     log_detection_to_db(camera_id,"queue", 1, image_data)
 
                     if (current_time - last_alert_time) > cooldown_seconds:
-                        print("---------------1-------------")
-
+                        
+                        last_alert_time = time.time()
                         timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                         action = "Ensure attendees form queue"
                         location_name = "Webcam Location"  # Replace with dynamic location
@@ -663,6 +679,7 @@ def SMOKE_detect_objects_from_webcam(frame, model, cooldown_seconds = 0):
 
                     if (current_time - last_smoke_alert_time) > cooldown_seconds:
 
+                        last_smoke_alert_time = time.time()
                         timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                         action = "Take action against attendees smoking"
                         location_name = "Webcam Location"  # Replace with dynamic location
@@ -728,6 +745,8 @@ def SMOKE_process_video_for_detections(video_path,model, cooldown_seconds = 0):
                     log_detection_to_db(camera_id, "smoke", 1, image_data)
 
                     if (current_time - last_alert_time) > cooldown_seconds:
+
+                        last_alert_time = time.time()
                         timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                         action = "Take action against attendees smoking"
                         location_name = "Webcam Location"  # Replace with dynamic location

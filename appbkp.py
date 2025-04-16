@@ -39,27 +39,6 @@ os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['OUTPUT_FOLDER'] = OUTPUT_FOLDER
 
-
-# Initialize Firebase (replace 'path/to/serviceAccountKey.json' with your credentials)
-cred = credentials.Certificate('credentials.json')
-firebase_admin.initialize_app(cred)
-
-# Get Firestore client
-db = firestore.client()
-
-#CREATE FIRESTORE ALERTS TABLE
-def add_alert_to_firestore(camera_id, location_name, alert_type, detected_value, timestamp,status="pending"):
-    alert_ref = db.collection('alerts').document()  # Auto-generate document ID
-    alert_ref.set({
-        'camera_id': camera_id,
-        'location_name': location_name,
-        'alert_type': alert_type,
-        'detected_value': detected_value,
-        'timestamp': timestamp,
-        'status':status
-    })
-
-
 #INITIALIZE CACHE
 recent_detections_cache = {
     'mask': set(),
@@ -143,11 +122,8 @@ def initialize_database():
     conn.commit()
     conn.close()
 
-#Logging Alerts
-def log_alert(camera_id, location_name, alert_type, detected_value,status="pending"):
-    #storing to firebase
-    # add_alert_to_firestore(camera_id,location_name,alert_type,detected_value,status)
-    #Storing in sqlite as well to reduce API Hits
+
+def log_alert(camera_id, location_name, alert_type, detected_value):
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
     timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
@@ -157,6 +133,22 @@ def log_alert(camera_id, location_name, alert_type, detected_value,status="pendi
     ''', (camera_id, location_name, alert_type, detected_value, timestamp, status))
     conn.commit()
     conn.close()
+
+    #Storing Alerts also in Firebase
+    try:
+        add_alert_to_firestore(
+            camera_id, 
+            location_name, 
+            alert_type, 
+            detected_value, 
+            timestamp, 
+            status
+        )
+    except Exception as e:
+        print(f"Firestore write failed: {e}")    
+
+    # Update cooldown cache
+    last_alert_cache[cache_key] = current_time
 
 #LOGGING DATA IN DB
 def log_detection_to_db(camera_id, model_type, no_of_detections, image_data=None):
