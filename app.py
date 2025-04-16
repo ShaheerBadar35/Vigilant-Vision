@@ -389,7 +389,7 @@ def CC_process_webcam_feed(frame, model, conf_threshold=0.25, frame_skip=10, det
 
 last_mask_alert_time = 0
 #MASK MODEL FUNCTIONS
-def MASK_detect_objects_from_webcam(frame, model, cooldown_seconds = 0,location_name = "Webcam Location"):
+def MASK_detect_objects_from_webcam(frame, model, cooldown_seconds = 0,location_name = "Webcam Location",mask_mode="without_mask"):
     """Process a single frame for mask-wearing detection without duplicate logging."""
     print("MASK OBJECTS FROM WEB")
     no_mask_detections = 0
@@ -405,7 +405,7 @@ def MASK_detect_objects_from_webcam(frame, model, cooldown_seconds = 0,location_
         for box, class_id, track_id in zip(boxes, class_ids, track_ids):
             label = Mask_names[class_id]
             x1, y1, x2, y2 = box
-            color = (0, 255, 0) if label.lower() not in ["without_mask", "mask_weared_incorrect"] else (0, 0, 255)
+            color = (0, 255, 0) if label.lower() not in [mask_mode, "mask_weared_incorrect"] else (0, 0, 255)
             cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
             cv2.putText(frame, f'{track_id} - {label}', (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
 
@@ -429,7 +429,7 @@ def MASK_detect_objects_from_webcam(frame, model, cooldown_seconds = 0,location_
     return no_mask_detections
 
 
-def MASK_process_video_for_detections(video_path,model, cooldown_seconds= 0,location_name = "MainHall"):
+def MASK_process_video_for_detections(video_path,model, cooldown_seconds= 0,location_name = "MainHall",mask_mode="without_mask"):
     print("MASK UPLOAD CALLED")
     """Process a video for mask detections and save snapshots to the database."""
     cap = cv2.VideoCapture(video_path)
@@ -471,7 +471,7 @@ def MASK_process_video_for_detections(video_path,model, cooldown_seconds= 0,loca
                 x1, y1, x2, y2 = box
 
                 # Draw bounding box and label on the frame
-                color = (0, 255, 0) if label.lower() not in ["without_mask", "mask_weared_incorrect"] else (0, 0, 255)
+                color = (0, 255, 0) if label.lower() not in [mask_mode, "mask_weared_incorrect"] else (0, 0, 255)
                 cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
                 cv2.putText(frame, f'{track_id} - {label}', (x1, y1 - 10),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
@@ -755,6 +755,7 @@ def upload_file():
     # detection_threshold = int(request.form.get('threshold', 37))
     detection_threshold = user_settings["threshold"]
     cooldown_seconds = user_settings["cooldown"]
+    mask_mode = user_settings["mask_mode"]
 
     if not selected_models_file1 and not selected_models_file2:
         return jsonify({'error': 'No model selected'}), 400
@@ -767,7 +768,7 @@ def upload_file():
                 output_path_crowd = os.path.join(app.config['OUTPUT_FOLDER'], 'crowd_' + file.filename)
                 tasks.append(executor.submit(CC_process_video_alternative, input_path, CROWD_MODEL, output_path_crowd, 0.25, 10, detection_threshold, cooldown_seconds, 0 ))
             if 'mask' in selected_models:
-                tasks.append(executor.submit(MASK_process_video_for_detections, input_path, MASK_MODEL, cooldown_seconds))
+                tasks.append(executor.submit(MASK_process_video_for_detections, input_path, MASK_MODEL, cooldown_seconds,mask_mode))
             if 'queue' in selected_models:
                 tasks.append(executor.submit(QUEUE_process_video_for_detections, input_path, QUEUE_MODEL, cooldown_seconds ))
             if 'smoke' in selected_models:
@@ -819,6 +820,9 @@ def webcam_feed():
     # detection_threshold = int(data.get('threshold', 5))
     detection_threshold = user_settings["threshold"]
     cooldown_seconds = user_settings["cooldown"]
+    mask_mode = user_settings["mask_mode"]
+    location_name = user_settings["location_camera_1"] if feed_id == "feed1" else user_settings["location_camera_2"]
+
 
     if action == 'stop':
         is_live_feed_running[feed_id] = False
@@ -843,13 +847,13 @@ def webcam_feed():
 
                 with ThreadPoolExecutor() as executor:
                     if 'crowd' in selected_models:
-                        tasks.append(executor.submit(CC_process_webcam_feed, frame, CROWD_MODEL, 0.25, 10, detection_threshold, cooldown_seconds, 3))
+                        tasks.append(executor.submit(CC_process_webcam_feed, frame, CROWD_MODEL, 0.25, 10, detection_threshold, cooldown_seconds, 3,location_name))
                     if 'mask' in selected_models:
-                        tasks.append(executor.submit(MASK_detect_objects_from_webcam, frame, MASK_MODEL, cooldown_seconds))
+                        tasks.append(executor.submit(MASK_detect_objects_from_webcam, frame, MASK_MODEL, cooldown_seconds,location_name,mask_mode))
                     if 'queue' in selected_models:
-                        tasks.append(executor.submit(QUEUE_detect_objects_from_webcam, frame, QUEUE_MODEL, cooldown_seconds))
+                        tasks.append(executor.submit(QUEUE_detect_objects_from_webcam, frame, QUEUE_MODEL, cooldown_seconds,location_name))
                     if 'smoke' in selected_models:
-                        tasks.append(executor.submit(SMOKE_detect_objects_from_webcam, frame, SMOKE_MODEL, cooldown_seconds))
+                        tasks.append(executor.submit(SMOKE_detect_objects_from_webcam, frame, SMOKE_MODEL, cooldown_seconds,location_name))
 
                     for future in as_completed(tasks):
                         try:
