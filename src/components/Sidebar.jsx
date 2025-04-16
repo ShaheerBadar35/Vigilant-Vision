@@ -26,7 +26,7 @@ const Sidebar = () => {
         </div>
         <div className="Row-Menu">
           <img src={Settings} alt ="Settings Icon" className="Icon"/>
-          <li><Link to="/" className="menu-link">Alerts</Link></li>
+          <li><Link to="/settings" className="menu-link">Settings</Link></li>
         </div>
         
         {/* <li><Link to="/settings" className="menu-link">Settings</Link></li> */}

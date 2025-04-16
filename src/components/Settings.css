@@ -1,0 +1,94 @@
+.settings-container {
+    display: flex;
+    background-color: white;
+    min-height: 100vh;
+    color: #2563eb;
+    padding: 40px;
+    box-sizing: border-box;
+  }
+  
+  .settings-content {
+    flex-grow: 1;
+    max-width: 700px;
+  }
+  
+  .settings-title {
+    font-size: 2rem;
+    font-weight: bold;
+    margin-bottom: 30px;
+  }
+  
+  .settings-form {
+    display: grid;
+    gap: 25px;
+  }
+  
+  .form-group {
+    display: flex;
+    flex-direction: column;
+    position: relative;
+  }
+  
+  .form-group label {
+    font-weight: 600;
+    margin-bottom: 8px;
+  }
+  
+  .form-group input,
+  .form-group select {
+    padding: 10px 14px;
+    border: 2px solid #2563eb;
+    border-radius: 10px;
+    font-size: 1rem;
+    outline: none;
+    transition: border-color 0.2s ease-in-out;
+  }
+  
+  .form-group input:focus,
+  .form-group select:focus {
+    border-color: #174eb6;
+  }
+  
+  .tooltip-container {
+    position: relative;
+  }
+  
+  .tooltip-text {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    margin-top: 5px;
+    background-color: #f0f4ff;
+    color: #333;
+    font-size: 0.85rem;
+    padding: 8px 12px;
+    border-radius: 6px;
+    border: 1px solid #c3dafe;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    pointer-events: none;
+    z-index: 10;
+    width: max-content;
+    max-width: 300px;
+  }
+  
+  .tooltip-container:hover .tooltip-text {
+    opacity: 1;
+  }
+
+  .save-btn {
+    background-color: #2563eb;
+    color: white;
+    padding: 12px 20px;
+    font-size: 1rem;
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    margin-top: 20px;
+    transition: background 0.3s ease;
+  }
+  
+  .save-btn:hover {
+    background-color: #1e4ed8;
+  }
+  
