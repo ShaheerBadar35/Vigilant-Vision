@@ -10,9 +10,9 @@ const Sidebar = () => {
   const location = useLocation();
 
   const menuItems = [
-    { icon: <FaHome />, label: "Dashboard", path: "/my-library" },
+    { icon: <FaHome />, label: "Dashboard", path: "/dashboard" },
     { icon: <FaBell />, label: "Alerts", badge: 3, path: "/alerts" },
-    { icon: <FaCog />, label: "Settings", path: "" },
+    { icon: <FaCog />, label: "Settings", path: "/settings" },
     { icon: <FaUserFriends />, label: "About Us", path: "/" },
   ];
 

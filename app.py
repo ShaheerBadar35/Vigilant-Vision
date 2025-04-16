@@ -897,7 +897,7 @@ def webcam_feed():
 
 @app.route('/alerts', methods=['GET'])
 def fetch_alerts():
-    global last_crowd_alert_time
+    #global last_crowd_alert_time
 
     try:
         conn = sqlite3.connect(DB_NAME)

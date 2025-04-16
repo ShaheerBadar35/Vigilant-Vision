@@ -1,0 +1,223 @@
+.my-library-container {
+    display: flex;
+    flex-direction: Row;
+    justify-content: flex-start; 
+    gap: 100px;
+    padding: 35px;
+    background-color: #F7F7F8;
+    border-radius: 10px;
+    width: 92%;
+    margin: 20px;
+    font-family: "Arial", sans-serif;
+  }
+  
+  .input-section {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    
+  }
+
+  .Column2 {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    align-items: flex-end;
+    
+  }
+
+  .feed-section {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 10px;
+    align-items: flex-start;
+  }
+  
+  .label {
+    display: flex;
+    font-size: 18px;
+    font-weight: 500;
+    justify-content: space-between;
+  }
+  
+  .dropdown {
+    position: relative;
+    width: 100%; 
+    border-radius: 8px;
+    font-size: 14px;
+    border: 1px solid #ccc;
+    background-color: white;
+    appearance: none; 
+    /*margin-bottom: 10px; */
+    font-weight: 500;   
+    height: 40px;
+}
+  
+  .dropdown-container {
+    width: 100%; 
+    position: relative;
+  }
+
+  .slider-section {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    align-items: center;
+    width: 200px;
+    margin-left: auto;
+  }
+  
+  .slider {
+    width: 100%;
+    cursor: pointer;
+  }
+  
+  .slider-label {
+    font-size: 14px;
+    font-weight: bold;
+  }
+  
+  .slider-value {
+    font-size: 16px;
+    font-weight: bold;
+    color: #6c63ff;
+    margin-top: 5px;
+  }
+  
+  .classes-section {
+    
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 30px;
+  }
+  
+  .class-buttons {
+    display: flex;
+    flex-direction: row;
+    /*justify-content: space-between;*/
+    display: flex;
+    flex-wrap: wrap;
+    gap: 15px; 
+
+  }
+  
+  .class-button {
+    /* padding: 10px 20px; */
+    border: 1px solid #2567E8;
+    border-radius: 8px;
+    background-color: #ffffff;
+    cursor: pointer;
+    font-size: 16px;
+    font-weight: 500;
+    text-align: center;
+    transition: all 0.2s ease-in-out;
+    width: 100px;
+    height: 35px;
+    
+  }
+  
+  .class-button:hover {
+    background-color: #e0e7ff;
+  }
+  
+  .class-button.selected {
+    background-color: #e0e7ff;
+    color: #2567E8;
+    box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.2); 
+    border: 0px;
+    font-weight: 500;
+    
+  }
+
+  .select-all-button {
+    padding: 6px 15px;
+    background-color: #cfe6e2;
+    color: #080808;
+    border: none;
+    border-radius: 30px;
+    font-size: 10px;
+    cursor: pointer;
+    transition: all 0.2s ease-in-out;
+    margin-top: auto;
+    border: 1px solid #c6dcd8;
+    width: auto;
+    
+  }
+  
+  .start-processing-button {
+    /*padding: 8px 20px;*/
+    background-color: #2567E8;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s ease-in-out;
+    margin-top: 20px;
+    width: 160px;
+    height:40px;
+    box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.3); 
+    
+    
+    /* align-self: flex-start; Align to the left */
+  }
+  
+  .start-processing-button:hover {
+    background-color: #4a43e3;
+  }
+  
+  .start-processing-button:disabled {
+    background-color: #ccc;
+    cursor: not-allowed;
+  }
+  
+  /* New Container for Content (Image, Video, Live Feed) */
+  .content-display-container {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    width: 100%;
+    margin-top: 20px;
+  }
+  
+  .content-display {
+    width: 100%;
+  }
+  
+  .content-display img,
+  .content-display video {
+    width: 100%;
+    height: auto;
+  }
+  
+  @media (max-width: 768px) {
+    .input-section {
+      flex-direction: column;
+      align-items: stretch;
+    }
+  
+    .slider-section {
+      width: 100%;
+    }
+  
+    .class-buttons {
+      grid-template-columns: 1fr;
+    }
+  }
+  
+
+
+  .react-select__menu {
+    z-index: 1000; 
+  }
+
+  .react-select__single-value {
+    display: flex;
+    align-items: center;
+  }
+
+  .react-select__dropdown-indicator {
+    padding: 8px;
+  }  
