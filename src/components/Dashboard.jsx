@@ -460,7 +460,9 @@ const MyLibrary = () => {
 
 
   return (
-    <div className="my-library-container">
+    <div className="dashboard-container">
+      <h2>Select Field</h2>
+    <div className="selection-container">
       {[1, 2].map((input) => {
         const inputType = input === 1 ? input1Type : input2Type;
         const selectedClasses =
@@ -515,6 +517,7 @@ const MyLibrary = () => {
           </div>
         );
       })}
+    </div>
     </div>
   );
 };

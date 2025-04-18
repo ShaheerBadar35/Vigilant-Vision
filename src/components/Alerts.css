@@ -1,20 +1,19 @@
-/* Alerts Container */
+/* Alerts Container
 .alerts {
     padding: 20px;
-    background-color: #f3f4f6; /* Light background for the alerts container */
+    background-color: #f3f4f6; 
     border-radius: 8px;
     margin-top: 20px;
     box-sizing: border-box;
   }
   
-  /* Alerts Content */
   .alerts-content {
     display: flex;
     flex-direction: column;
     gap: 15px;
   }
   
-  /* Alert Item */
+ 
   .alert-item {
     background: #fff8e1;
     padding: 15px;
@@ -29,22 +28,22 @@
     background-color: #fef3c7;
   }
   
-  /* Alert Title */
+  
   .alert-title {
     font-size: 18px;
     font-weight: 600;
     color: #1f2937;
-    margin-bottom: 5px; /* Margin for spacing between title and time */
+    margin-bottom: 5px; 
   }
   
-  /* Alert Time */
+ 
   .alert-time {
     display: block;
     color: #6b7280;
     font-size: 14px;
   }
   
-  /* Responsive Design for Smaller Screens */
+ 
   @media (max-width: 768px) {
     .alerts-content {
       gap: 10px;
@@ -53,5 +52,53 @@
     .alert-item {
       padding: 12px;
     }
+  } 
+  */
+
+
+  /* new alerts css */
+  .alerts-container {
+    padding: 20px;
+    background-color: #fff;
   }
+  
+  .notification-box {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between; 
+    height: 100px;
+    background-color: #f8f8f9;
+    padding: 20px 20px;
+    border-radius: 10px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  }
+
+  
+  .notification-input {
+    border: none;
+    outline: none;
+    font-size: 16px;
+    border-radius: 8px;
+    background-color: transparent;
+  }
+  
+  .generate-button {
+    align-self: flex-end;
+    background-color: #2563eb;
+    color: white;
+    border: none;
+    width: 160px;
+    height:40px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background-color 0.3s ease;
+    height: 40;
+    align-items: end;
+  }
+  
+  .generate-button:hover {
+    background-color: #1e40af;
+  }
+  
   

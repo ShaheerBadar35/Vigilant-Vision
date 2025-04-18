@@ -1,4 +1,8 @@
-.my-library-container {
+.dashboard-container {
+  padding: 20px;
+  background-color: #fff;
+}
+.selection-container {
     display: flex;
     flex-direction: Row;
     justify-content: flex-start; 
@@ -6,8 +10,6 @@
     padding: 35px;
     background-color: #F7F7F8;
     border-radius: 10px;
-    width: 92%;
-    margin: 20px;
     font-family: "Arial", sans-serif;
   }
   
