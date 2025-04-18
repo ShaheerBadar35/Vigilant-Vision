@@ -4,7 +4,8 @@
 /node_modules
 /.pnp
 .pnp.js
-
+/venv
+/venv/Lib
 # testing
 /coverage
 
@@ -25,6 +26,7 @@ yarn-error.log*
 .venv/
 uploads/
 outputs/
-VV/
+output_videos/
+*.db
 
 credentials.json

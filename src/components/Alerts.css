@@ -100,5 +100,120 @@
   .generate-button:hover {
     background-color: #1e40af;
   }
+
+  /*.alerts-container {
+    padding: 20px;
+    font-family: 'Segoe UI', sans-serif;
+    color: #333;
+  }*/
+  
+  .recent-section h2,
+  .history-section h2 {
+    margin-bottom: 10px;
+    color: #111;
+  }
+  
+  .recent-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 10px;
+  }
+  
+  .recent-item {
+    display: flex;
+    align-items: center;
+    border: 1px solid #e2e2e2;
+    border-radius: 12px;
+    padding: 12px;
+    background: #f9f9f9;
+  }
+  
+  .recent-item .bell {
+    margin-right: 10px;
+  }
+  
+  .recent-item p {
+    flex-grow: 1;
+    margin: 0;
+  }
+  
+  .edit-btn {
+    background-color: #e5e7eb;
+    color: #111;
+    border: none;
+    padding: 6px 10px;
+    margin-right: 5px;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+  
+  .delete-btn {
+    background: none;
+    border: none;
+    color: red;
+    font-size: 16px;
+    cursor: pointer;
+  }
+  
+  .history-section {
+    margin-top: 40px;
+  }
+  
+  .history-header {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 10px;
+  }
+  
+  .search-input {
+    padding: 8px;
+    width: 200px;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+  }
+  
+  .history-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: white;
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  
+  .history-table th,
+  .history-table td {
+    padding: 12px 16px;
+    border-bottom: 1px solid #eee;
+    text-align: left;
+  }
+  
+  .sender-cell {
+    display: flex;
+    align-items: center;
+  }
+  
+  .sender-cell img {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    margin-right: 8px;
+  }
+  
+  .status {
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    font-weight: bold;
+  }
+  
+  .status.pending {
+    background-color: #fef3c7;
+    color: #b45309;
+  }
+  
+  .status.done {
+    background-color: #d1fae5;
+    color: #065f46;
+  }
   
   

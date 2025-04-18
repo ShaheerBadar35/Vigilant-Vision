@@ -41,28 +41,25 @@ os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['OUTPUT_FOLDER'] = OUTPUT_FOLDER
 
-# Global cooldown settings (in seconds)
-ALERT_COOLDOWN = 15  # 45-second cooldown
-last_alert_cache = {}  # Key: (camera_id, alert_type), Value: last_timestamp
 
 # Initialize Firebase (replace 'path/to/serviceAccountKey.json' with your credentials)
-cred = credentials.Certificate('credentials.json')
-firebase_admin.initialize_app(cred)
+#cred = credentials.Certificate('credentials.json')
+#firebase_admin.initialize_app(cred)
 
 # Get Firestore client
-db = firestore.client()
+#db = firestore.client()
 
 #CREATE FIRESTORE ALERTS TABLE
-def add_alert_to_firestore(camera_id, location_name, alert_type, detected_value, timestamp,status="pending"):
-    alert_ref = db.collection('alerts').document()  # Auto-generate document ID
-    alert_ref.set({
-        'camera_id': camera_id,
-        'location_name': location_name,
-        'alert_type': alert_type,
-        'detected_value': detected_value,
-        'timestamp': timestamp,
-        'status':status
-    })
+# def add_alert_to_firestore(camera_id, location_name, alert_type, detected_value, timestamp,status="pending"):
+#     alert_ref = db.collection('alerts').document()  # Auto-generate document ID
+#     alert_ref.set({
+#         'camera_id': camera_id,
+#         'location_name': location_name,
+#         'alert_type': alert_type,
+#         'detected_value': detected_value,
+#         'timestamp': timestamp,
+#         'status':status
+#     })
 
 
 #----- Cache initialization for tracking ids -----
@@ -147,21 +144,13 @@ def initialize_database():
     conn.commit()
     conn.close()
 
-#Logging Alerts
-def log_alert(camera_id, location_name, alert_type, detected_value,status="pending"):
-    global last_alert_cache
-    current_time = datetime.now()
+#----- Logging alerts in db -----
+def log_alert(location_name, alert_type, action, timestamp, camera_id=None, detected_value=None, image=None, status="pending"):
 
-    # Unique key for cooldown tracking
-    cache_key = (camera_id, alert_type)
+    # storing to firebase
+    #add_alert_to_firestore(camera_id,location_name,alert_type,detected_value,status)
 
-    # Check cooldown period    
-    last_time = last_alert_cache.get(cache_key)
-    if last_time and (current_time - last_time).total_seconds() < ALERT_COOLDOWN:
-        print(f"Cooldown active for {alert_type} (Camera {camera_id}). Skipping.")
-        return    
-
-    #Storing in sqlite as well to reduce API Hits
+    # storing in sqlite as well to reduce API Hits
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
 
