@@ -50,7 +50,7 @@ app.config['OUTPUT_FOLDER'] = OUTPUT_FOLDER
 #db = firestore.client()
 
 #CREATE FIRESTORE ALERTS TABLE
-# def add_alert_to_firestore(camera_id, location_name, alert_type, detected_value, timestamp,status="pending"):
+# def add_alert_to_firestore(camera_id, location_name, alert_type, detected_value, timestamp,status="pending",action):
 #     alert_ref = db.collection('alerts').document()  # Auto-generate document ID
 #     alert_ref.set({
 #         'camera_id': camera_id,
@@ -58,7 +58,8 @@ app.config['OUTPUT_FOLDER'] = OUTPUT_FOLDER
 #         'alert_type': alert_type,
 #         'detected_value': detected_value,
 #         'timestamp': timestamp,
-#         'status':status
+#         'status':status,
+#         'action': action
 #     })
 
 
@@ -148,7 +149,7 @@ def initialize_database():
 def log_alert(location_name, alert_type, action, timestamp, camera_id=None, detected_value=None, image=None, status="pending"):
 
     # storing to firebase
-    #add_alert_to_firestore(camera_id,location_name,alert_type,detected_value,status)
+    #add_alert_to_firestore(camera_id,location_name,alert_type,detected_value,status,action,timestamp)
 
     # storing in sqlite as well to reduce API Hits
     conn = sqlite3.connect(DB_NAME)
@@ -762,6 +763,7 @@ def upload_file():
     detection_threshold = user_settings["threshold"]
     cooldown_seconds = user_settings["cooldown"]
     mask_mode = user_settings["mask_mode"]
+    location_name = user_settings["location_camera_1"] if file1 == "file1" else user_settings["location_camera_2"]
 
     if not selected_models_file1 and not selected_models_file2:
         return jsonify({'error': 'No model selected'}), 400
@@ -968,37 +970,6 @@ def fetch_alerts():
     except Exception as e:
         print(f"Error occurred: {str(e)}")
         return jsonify({"error": str(e)}), 500
-
-@app.route('/get_alerts', methods=['GET'])
-def get_alerts_from_db():
-    try:
-        conn = sqlite3.connect('VV.db')
-        cursor = conn.cursor()
-
-        cursor.execute('''
-            SELECT Action, Alert_Type, Status, Timestamp, Location_Name
-            FROM Alerts
-            ORDER BY Timestamp DESC
-        ''')
-
-        rows = cursor.fetchall()
-        conn.close()
-
-        alerts = []
-        for row in rows:
-            alerts.append({
-                "action": row[0],
-                "type": row[1],
-                "status": row[2],
-                "timestamp": row[3],
-                "location": row[4]
-            })
-
-        return jsonify(alerts)
-
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
 
 user_settings = {
     "threshold": 20,
