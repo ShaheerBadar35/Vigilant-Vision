@@ -43,6 +43,7 @@ const Alerts = () => {
   const [selectedAlertToDelete, setSelectedAlertToDelete] = useState(null);
   const [showDeletePopup, setShowDeletePopup] = useState(false);
   const [nonAdminAlerts, setNonAdminAlerts] = useState([]);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const handleGenerate = () => {
     if (alertText.trim() === '') {
@@ -132,6 +133,8 @@ const Alerts = () => {
   const handleDelete = async () => {
     if (!selectedAlertToDelete) return;
   
+    setIsDeleting(true); // Show loader
+  
     try {
       await deleteDoc(doc(db, 'alerts', selectedAlertToDelete.id));
   
@@ -144,7 +147,10 @@ const Alerts = () => {
       console.error('Error deleting alert:', error);
       alert('Failed to delete alert.');
     }
-  };  
+  
+    setIsDeleting(false); // Hide loader
+  };
+  
 
   useEffect(() => {
     fetchAdminAlerts();
@@ -251,11 +257,20 @@ const Alerts = () => {
           <h3>Confirm Deletion</h3>
           <p>Are you sure you want to delete this alert?</p>
           <div className="popup-buttons">
-            <button onClick={handleDelete} className="delete-btn">Delete</button>
-            <button onClick={() => {
-              setShowDeletePopup(false);
-              setSelectedAlertToDelete(null);
-            }}>Cancel</button>
+            <button onClick={handleDelete} className="delete-btn" disabled={isDeleting}>
+              {isDeleting ? "Deleting..." : "Delete"}
+            </button>
+            <button
+              onClick={() => {
+                if (!isDeleting) {
+                  setShowDeletePopup(false);
+                  setSelectedAlertToDelete(null);
+                }
+              }}
+              disabled={isDeleting}
+            >
+              Cancel
+            </button>
           </div>
         </div>
       </div>
