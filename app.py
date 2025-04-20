@@ -170,7 +170,7 @@ def log_detection_to_db(camera_id, model_type, no_of_detections, image_data=None
 
     print("INSIDE LOG DETECTION DB")
 
-    if model_type == "crowd":
+    if model_type == "Crowd":
         print("Crowd Data logged in DB")
         cursor.execute('''INSERT INTO CrowdControl (Camera_ID, No_of_Detections, Timestamp ) VALUES (?, ?, ?)''',
                        (camera_id, no_of_detections, timestamp ))
@@ -194,11 +194,11 @@ def log_detection_to_db(camera_id, model_type, no_of_detections, image_data=None
 initialize_database()
 
 #----- CrowdCount Model processing function -----
-def CC_process_video_alternative(video_path, model, output_path, conf_threshold=0.25, frame_skip=10, detection_threshold=37, cooldown_seconds=90, count_change_threshold=3,location_name = "MainHall"):
+def CC_process_video_alternative(video_path, model, output_path, conf_threshold=0.25, frame_skip=10, detection_threshold=20, cooldown_seconds=90, count_change_threshold=3,location_name = "MainHall"):
     
     """Efficient frame-by-frame video processing, skipping frames periodically, with people detection."""
     print("CC UPLOAD VIDEO CALLED")
-
+    
     cap = cv2.VideoCapture(video_path)
     frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
@@ -263,7 +263,7 @@ def CC_process_video_alternative(video_path, model, output_path, conf_threshold=
         count_difference = abs(frame_people_detected - last_crowd_count)
         time_since_last_threshold = current_time - last_threshold_check_time
 
-
+        print("Total people detected in current frame: ",frame_people_detected)
         # 1-If the detection threshold is exceeded
         if frame_people_detected >= detection_threshold:
             print("Inside if, total ppl in this frame :",frame_people_detected)
@@ -969,9 +969,40 @@ def fetch_alerts():
         print(f"Error occurred: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
+@app.route('/get_alerts', methods=['GET'])
+def get_alerts_from_db():
+    try:
+        conn = sqlite3.connect('VV.db')
+        cursor = conn.cursor()
+
+        cursor.execute('''
+            SELECT Action, Alert_Type, Status, Timestamp, Location_Name
+            FROM Alerts
+            ORDER BY Timestamp DESC
+        ''')
+
+        rows = cursor.fetchall()
+        conn.close()
+
+        alerts = []
+        for row in rows:
+            alerts.append({
+                "action": row[0],
+                "type": row[1],
+                "status": row[2],
+                "timestamp": row[3],
+                "location": row[4]
+            })
+
+        return jsonify(alerts)
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 user_settings = {
-    "threshold": 37,
-    "cooldown": 90,
+    "threshold": 20,
+    "cooldown": 40,
     "mask_mode": "mask",
     "location_camera_1": "MainHall",
     "location_camera_2": "Entrance"
@@ -979,6 +1010,7 @@ user_settings = {
 
 @app.route('/set_settings', methods=['POST'])
 def set_settings():
+    print("SETTINGS CALLED")
     data = request.get_json()
     user_settings.update({
         "threshold": int(data.get("threshold", 37)),

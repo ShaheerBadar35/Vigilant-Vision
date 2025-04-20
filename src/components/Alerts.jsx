@@ -1,90 +1,122 @@
-// -------------old alerts page--------------------
-// import React, { useEffect, useState } from "react";
-// import "./Alerts.css";
+// //-------------new alerts---------------
+// import React, { useState } from 'react';
+// import './Alerts.css';
+// import { db } from './firebaseConfig';
+// import { collection, addDoc, Timestamp } from 'firebase/firestore';
+
+// const recentMessages = [
+//   "Ladis log ki jaga nhi hai.",
+//   "I'm just a chill guy.",
+//   "hello, mall mein aag laggyi hai.",
+//   "jaani jaga nhi hai mat jana.",
+//   "BHUT RUSH HAI!!!",
+//   "Pachtaoge jaake."
+// ];
+
+// const AlertsHistory = [
+//   {
+//     id: 1,
+//     sender: "Emma Ryan Jr.",
+//     avatar: "https://i.pravatar.cc/40?img=1",
+//     type: "Smoke",
+//     status: "Pending",
+//     date: "Feb 19th, 2023"
+//   },
+//   {
+//     id: 2,
+//     sender: "Adrian Daren",
+//     avatar: "https://i.pravatar.cc/40?img=2",
+//     type: "WebCam",
+//     status: "Done",
+//     date: "Feb 18th, 2023"
+//   },
+//   {
+//     id: 3,
+//     sender: "Roxanne Hills",
+//     avatar: "https://i.pravatar.cc/40?img=3",
+//     type: "Queue",
+//     status: "Done",
+//     date: "Apr 16th, 2023"
+//   }
+// ];
 
 // const Alerts = () => {
-//   const [alerts, setAlerts] = useState([]);
-//   const [loading, setLoading] = useState(true);
-//   const [error, setError] = useState(null);
+//   const [Alerts, setAlerts] = useState('');
 
-//   useEffect(() => {
-//     const fetchAlerts = async () => {
-//       try {
-//         const response = await fetch("http://127.0.0.1:5000/alerts"); // Ensure this is the correct API URL
-//         if (!response.ok) {
-//           throw new Error(`HTTP error! Status: ${response.status}`);
-//         }
-//         const data = await response.json();
-//         setAlerts(data);
-//         setLoading(false);
-//       } catch (err) {
-//         console.error("Error fetching alerts:", err);
-//         setError(err.message);
-//         setLoading(false);
-//       }
-//     };
-
-//     fetchAlerts();
-//   }, []);
-
-//   const getAlertStyle = (alertType) => {
-//     switch (alertType) {
-//       case "Crowd":
-//         return { backgroundColor: "rgba(255, 0, 0, 0.1)", color: "red" };
-//       case "No-Mask":
-//         return { backgroundColor: "rgba(255, 255, 0, 0.1)", color: "yellow" };
-//       case "Smoking":
-//         return { backgroundColor: "rgba(0, 0, 255, 0.1)", color: "blue" };
-//       case "No-Queue":
-//         return { backgroundColor: "rgba(0, 255, 0, 0.1)", color: "green" };
-//       default:
-//         return { backgroundColor: "rgba(0, 0, 0, 0.1)", color: "black" };
-//     }
+//   const handleGenerate = () => {
+//     if (Alerts.trim() === '') return;
+//     alert(`Alerts Generated: ${Alerts}`);
+//     setAlerts('');
 //   };
 
-//   if (loading) {
-//     return <div>Loading alerts...</div>;
-//   }
-
-//   if (error) {
-//     return <div>Error: {error}</div>;
-//   }
-
 //   return (
-//     <div className="alerts">
-//       <h1>Alerts</h1>
-//       <div className="alerts-content">
-//         {alerts.length === 0 ? (
-//           <div>No alerts to show.</div>
-//         ) : (
-//           alerts.map((alert) => (
-//             <div
-//               key={alert.camera_id}
-//               className="alert-item"
-//               style={getAlertStyle(alert.alert_type)} // Apply dynamic style based on alert type
-//             >
-//               <div className="alert-title">
-//                 <strong>{alert.alert_type}</strong> alert in{" "}
-//                 <strong>{alert.location_name}</strong>:{" "}
-//                 <em>Detected {alert.detected_value} people</em>
-//               </div>
-//               <span className="alert-time">
-//                 Timestamp: {new Date(alert.timestamp).toLocaleString()}
-//               </span>
-//               {alert.image && (
-//                 <div className="alert-image">
-//                   <img
-//                     src={`data:image/jpeg;base64,${alert.image}`}
-//                     alt="Alert"
-//                     style={{ width: "200px", height: "auto" }}
-//                   />
-//                 </div>
-//               )}
-              
-//             </div>
-//           ))
-//         )}
+//     <div className="alerts-container">
+//       <h2>Generate Alerts</h2>
+//       <div className="Alerts-box">
+        
+//         <input
+//           type="text"
+//           placeholder="Enter Action..."
+//           value={Alerts}
+//           onChange={(e) => setAlerts(e.target.value)}
+//           className="Alerts-input"
+//         />
+//         <button className="generate-button" onClick={handleGenerate}>
+//           Generate Alerts
+//         </button>
 //       </div>
+//       <section className="recent-section">
+//         <h2>Admin Generated Alerts</h2>
+//         <div className="recent-list">
+//           {recentMessages.map((msg, index) => (
+//             <div key={index} className="recent-item">
+//               <span className="bell">🔔</span>
+//               <p>{msg}</p>
+//               <button className="edit-btn">Edit</button>
+//               <button className="delete-btn">🗑️</button>
+//             </div>
+//           ))}
+//         </div>
+//       </section>
+
+//       <section className="history-section">
+//         <h2>Alerts History</h2>
+//         <div className="history-header">
+//           <input type="text" className="search-input" placeholder="search" />
+//         </div>
+//         <table className="history-table">
+//           <thead>
+//             <tr>
+//               <th>Sender</th>
+//               <th>Type</th>
+//               <th>Status</th>
+//               <th>Date</th>
+//               <th>Action</th>
+//             </tr>
+//           </thead>
+//           <tbody>
+//             {AlertsHistory.map(item => (
+//               <tr key={item.id}>
+//                 <td className="sender-cell">
+//                   <img src={item.avatar} alt={item.sender} />
+//                   <span>{item.sender}</span>
+//                 </td>
+//                 <td>{item.type}</td>
+//                 <td>
+//                   <span className={`status ${item.status.toLowerCase()}`}>
+//                     {item.status}
+//                   </span>
+//                 </td>
+//                 <td>{item.date}</td>
+//                 <td>
+//                   <button className="edit-btn">Edit</button>
+//                   <button className="delete-btn">🗑️</button>
+//                 </td>
+//               </tr>
+//             ))}
+//           </tbody>
+//         </table>
+//       </section>
 //     </div>
 //   );
 // };
@@ -92,20 +124,14 @@
 // export default Alerts;
 
 
+//---FIRESTORE IMPLEMENTAION---
 //-------------new alerts---------------
-import React, { useState } from 'react';
+import React, { useState,useEffect  } from 'react';
 import './Alerts.css';
+import { db } from './firebaseConfig';
+import { collection, addDoc, Timestamp, query, where, getDocs, doc, deleteDoc  } from 'firebase/firestore';
 
-const recentMessages = [
-  "Ladis log ki jaga nhi hai.",
-  "I'm just a chill guy.",
-  "hello, mall mein aag laggyi hai.",
-  "jaani jaga nhi hai mat jana.",
-  "BHUT RUSH HAI!!!",
-  "Pachtaoge jaake."
-];
-
-const notificationHistory = [
+const AlertsHistory = [
   {
     id: 1,
     sender: "Emma Ryan Jr.",
@@ -132,65 +158,182 @@ const notificationHistory = [
   }
 ];
 
+
 const Alerts = () => {
-  const [notification, setNotification] = useState('');
+  const [Alerts, setAlerts] = useState('');
+  const [alertText, setAlertText] = useState('');
+  const [showLocationPopup, setShowLocationPopup] = useState(false);
+  const [location, setLocation] = useState('');
+  const [isLoading, setIsLoading] = useState(false); // 🔹 New loading state
+  const [adminAlerts, setAdminAlerts] = useState([]);
+  const [selectedAlertToDelete, setSelectedAlertToDelete] = useState(null);
+  const [showDeletePopup, setShowDeletePopup] = useState(false);
+  const [historyAlerts, setHistoryAlerts] = useState([]);
 
   const handleGenerate = () => {
-    if (notification.trim() === '') return;
-    alert(`Notification Generated: ${notification}`);
-    setNotification('');
+    if (alertText.trim() === '') {
+      alert('Enter an action');
+      return;
+    }
+    setShowLocationPopup(true);
   };
+
+  const handleLocationSubmit = async () => {
+    if (location.trim() === '') {
+      alert('Enter a location');
+      return;
+    }
+
+    setIsLoading(true); // 🔹 Show loader
+
+    try {
+      await addDoc(collection(db, 'alerts'), {
+        alert_type: "Admin",
+        camera_id: null,
+        detected_value: null,
+        location_name: location,
+        status: "pending",
+        timestamp: Timestamp.now(),
+        action: alertText
+      });
+
+      // Small timeout to simulate loader effect (optional)
+      setTimeout(() => {
+        alert('✅ Alert logged successfully!');
+        setAlertText('');
+        setLocation('');
+        setShowLocationPopup(false);
+        setIsLoading(false); // 🔹 Hide loader
+      }, 500);
+      fetchAdminAlerts();
+    } catch (error) {
+      console.error('Error writing alert:', error);
+      alert('❌ Failed to log alert.');
+      setIsLoading(false);
+    }
+  };
+
+  const fetchAdminAlerts = async () => {
+    try {
+      const q = query(collection(db, 'alerts'), where('alert_type', '==', 'Admin'));
+      const querySnapshot = await getDocs(q);
+      const alertsData = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      setAdminAlerts(alertsData);
+    } catch (error) {
+      console.error('Error fetching admin alerts:', error);
+    }
+  };
+
+  const fetchHistoryAlerts = async () => {
+    try {
+      const res = await fetch('http://localhost:5000/get_alerts');
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        setHistoryAlerts(data);
+      } else {
+        console.error("Unexpected data format", data);
+      }
+    } catch (err) {
+      console.error("Error fetching alert history:", err);
+    }
+  };  
+
+  const handleDelete = async () => {
+    if (!selectedAlertToDelete) return;
+  
+    try {
+      await deleteDoc(doc(db, 'alerts', selectedAlertToDelete.id));
+      setAdminAlerts(prev => prev.filter(alert => alert.id !== selectedAlertToDelete.id));
+      setShowDeletePopup(false);
+      setSelectedAlertToDelete(null);
+    } catch (error) {
+      console.error('Error deleting alert:', error);
+      alert('Failed to delete alert.');
+    }
+  };
+
+  useEffect(() => {
+    fetchAdminAlerts();
+    fetchHistoryAlerts();
+  }, []);
 
   return (
     <div className="alerts-container">
-      <h2>Generate Notifications</h2>
-      <div className="notification-box">
-        
+      <h2>Generate Alerts</h2>
+      <div className="Alerts-box">
         <input
           type="text"
-          placeholder="Enter Notification..."
-          value={notification}
-          onChange={(e) => setNotification(e.target.value)}
-          className="notification-input"
+          placeholder="Enter Action..."
+          value={alertText}
+          onChange={(e) => setAlertText(e.target.value)}
+          className="Alerts-input"
         />
         <button className="generate-button" onClick={handleGenerate}>
-          Generate Notification
+          Generate Alerts
         </button>
       </div>
+      {showLocationPopup && (
+        <div className="popup-overlay">
+          <div className="popup">
+            <h3>Enter Location</h3>
+            <input
+              type="text"
+              value={location}
+              onChange={(e) => setLocation(e.target.value)}
+              placeholder="Location name"
+            />
+            <div className="popup-buttons">
+              <button onClick={handleLocationSubmit} disabled={isLoading}>
+                {isLoading ? 'Submitting...' : 'OK'}
+              </button>
+              <button onClick={() => !isLoading && setShowLocationPopup(false)}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}      
       <section className="recent-section">
-        <h2>Recent Notification</h2>
+        <h2>Admin Generated Alerts</h2>
         <div className="recent-list">
-          {recentMessages.map((msg, index) => (
-            <div key={index} className="recent-item">
+          {adminAlerts.map((alert, index) => (
+            <div key={alert.id || index} className="recent-item">
               <span className="bell">🔔</span>
-              <p>{msg}</p>
+              <p>{alert.action}</p>
               <button className="edit-btn">Edit</button>
-              <button className="delete-btn">🗑️</button>
+              <button className="delete-btn"
+              onClick={() => {
+                setSelectedAlertToDelete(alert);
+                setShowDeletePopup(true);
+              }}
+              >
+              🗑️
+            </button>              
             </div>
           ))}
         </div>
       </section>
-
-      <section className="history-section">
-        <h2>Notification History</h2>
+      {/* <section className="history-section">
+        <h2>Alerts History</h2>
         <div className="history-header">
           <input type="text" className="search-input" placeholder="search" />
         </div>
         <table className="history-table">
           <thead>
             <tr>
-              <th><input type="checkbox" /></th>
-              <th>Sender</th>
+              <th>Action</th>
               <th>Type</th>
               <th>Status</th>
-              <th>Date</th>
-              <th>Action</th>
+              <th>Timestamp</th>
+              <th>Location</th>
             </tr>
           </thead>
           <tbody>
-            {notificationHistory.map(item => (
+            {AlertsHistory.map(item => (
               <tr key={item.id}>
-                <td><input type="checkbox" /></td>
                 <td className="sender-cell">
                   <img src={item.avatar} alt={item.sender} />
                   <span>{item.sender}</span>
@@ -210,7 +353,64 @@ const Alerts = () => {
             ))}
           </tbody>
         </table>
-      </section>
+      </section> */}
+      <section className="history-section">
+        <h2>Alerts History</h2>
+        <div className="history-header">
+          <input type="text" className="search-input" placeholder="search" />
+        </div>
+        <table className="history-table">
+          <thead>
+            <tr>
+              <th>Action</th>
+              <th>Type</th>
+              <th>Status</th>
+              <th>Date</th>
+              <th>Location</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {historyAlerts.map((alert, index) => (
+              <tr key={index}>
+                <td>{alert.action}</td>
+                <td>{alert.type}</td>
+                <td>
+                  <span className={`status ${alert.status?.toLowerCase()}`}>
+                    {alert.status}
+                  </span>
+                </td>
+                <td>{alert.timestamp}</td>
+                <td>{alert.location}</td>
+                <td>
+                  <button className="edit-btn">Edit</button>
+                  <button className="delete-btn"               
+                    onClick={() => {
+                      setSelectedAlertToDelete(alert);
+                      setShowDeletePopup(true);
+                    }}>
+                  🗑️</button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </section>      
+      {showDeletePopup && (
+      <div className="popup-overlay">
+        <div className="popup">
+          <h3>Confirm Deletion</h3>
+          <p>Are you sure you want to delete this alert?</p>
+          <div className="popup-buttons">
+            <button onClick={handleDelete} className="delete-btn">Delete</button>
+            <button onClick={() => {
+              setShowDeletePopup(false);
+              setSelectedAlertToDelete(null);
+            }}>Cancel</button>
+          </div>
+        </div>
+      </div>
+    )}      
     </div>
   );
 };
