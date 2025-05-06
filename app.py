@@ -2,6 +2,7 @@ import os
 import cv2
 import sqlite3
 import tensorflow as tf
+from tensorflow.keras.models import load_model
 from flask import Flask, request, jsonify, render_template, send_file, Response,url_for,send_from_directory,redirect
 from datetime import datetime
 from ultralytics import YOLO
@@ -28,6 +29,8 @@ CROWD_MODEL = tf.saved_model.load('CC-Model/model')
 MASK_MODEL = YOLO("Mask-Model/best.pt")
 QUEUE_MODEL = YOLO("Queue-Model/best.pt")
 SMOKE_MODEL = YOLO("Smoke-Model/best.pt")
+SUSSY_MODEL = load_model('Sussy-Model/best3.h5')
+SUSSY_LABELS = ["Abuse", "Arson", "Arrest", "Explosion", "Fighting", "Robbery", "Shooting"]
 Mask_names = MASK_MODEL.model.names
 Queue_names = QUEUE_MODEL.model.names
 Smoke_name = SMOKE_MODEL.model.names
@@ -68,7 +71,8 @@ recent_detections_cache = {
     'mask': set(),
     'queue': set(),
     'smoke': set(),
-    'crowd': set()  
+    'crowd': set(),
+    'anamoly': set()
 }
 
 #----- SQLite database initialization -----
@@ -142,6 +146,16 @@ def initialize_database():
             Image BLOB      
         )
     ''')
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS anamoly_Detection (
+            Detection_ID INTEGER PRIMARY KEY AUTOINCREMENT,
+            Camera_ID TEXT NOT NULL,
+            No_of_Detections INTEGER NOT NULL,
+            Timestamp TEXT NOT NULL,
+            Image BLOB,
+            Activity_Type TEXT      
+        )
+    ''')    
     conn.commit()
     conn.close()
 
@@ -163,7 +177,7 @@ def log_alert(location_name, alert_type, action, timestamp, camera_id=None, dete
     conn.close()
 
 #----- Logging detections/data in db -----
-def log_detection_to_db(camera_id, model_type, no_of_detections, image_data=None):
+def log_detection_to_db(camera_id, model_type, no_of_detections, image_data=None,activity=None):
 
     conn = sqlite3.connect('VV.db')
     cursor = conn.cursor()
@@ -187,6 +201,10 @@ def log_detection_to_db(camera_id, model_type, no_of_detections, image_data=None
         print("Smoke Data logged in DB")
         cursor.execute('''INSERT INTO Smoking_Detection (Camera_ID, No_of_Detections, Timestamp, Image) VALUES (?, ?, ?, ?)''',
                        (camera_id, no_of_detections, timestamp, image_data))
+    elif model_type == "anamoly":
+        print("anamoly Data logged in DB")
+        cursor.execute('''INSERT INTO anamoly_Detection (Camera_ID, No_of_Detections, Timestamp, Image, Activity_Type) VALUES (?, ?, ?, ?, ?)''',
+                       (camera_id, no_of_detections, timestamp, image_data,activity))
     
     conn.commit()
     conn.close()
@@ -743,6 +761,233 @@ def SMOKE_process_video_for_detections(video_path,model, cooldown_seconds = 0,lo
     print(f"✅ Saved output video to: {output_path}")
 
 
+# Add to your recent_detections_cache
+recent_detections_cache = {
+    'mask': set(),
+    'queue': set(),
+    'smoke': set(),
+    'crowd': set(),
+    'anamoly': set()  # New entry for suspicious activity tracking
+}
+
+last_anamoly_alert_time = 0  
+
+def anamoly_process_video(video_path, output_path, cooldown_seconds=0, location_name="MainHall"):
+    """Process video for suspicious activities."""
+    print("anamoly UPLOAD VIDEO CALLED")
+
+    cap = cv2.VideoCapture(video_path)
+    frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    fps = int(cap.get(cv2.CAP_PROP_FPS))
+
+    # Buffer to store frame sequences
+    frame_buffer = []
+    sequence_length = 15  # Matches model's time dimension
+    target_size = (64, 64)  # Matches model's spatial dimensions
+
+    # Prepare output video
+    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+    out = cv2.VideoWriter(output_path, fourcc, fps, (frame_width, frame_height))
+
+    camera_id = os.path.basename(video_path)
+    recent_detections = set()
+
+    # Use global for cooldown timestamp
+    global last_anamoly_alert_time
+
+    while cap.isOpened():
+        ret, frame = cap.read()
+        if not ret:
+            break
+
+        # Preprocess frame
+        resized_frame = cv2.resize(frame, target_size)
+        normalized_frame = resized_frame / 255.0
+        frame_buffer.append(normalized_frame)
+
+        # Keep buffer length fixed (sliding window)
+        if len(frame_buffer) > sequence_length:
+            frame_buffer.pop(0)
+
+        # Only predict when buffer is full
+        if len(frame_buffer) == sequence_length:
+            # Create input sequence (1, 15, 64, 64, 3)
+            input_sequence = np.expand_dims(np.array(frame_buffer), axis=0)
+
+            # Get predictions
+            predictions = SUSSY_MODEL.predict(input_sequence, verbose=0)
+            predicted_class = np.argmax(predictions[0])
+            confidence = np.max(predictions[0])
+            label = SUSSY_LABELS[predicted_class]
+
+            current_time = time.time()
+
+            # Process detection
+            if confidence > 0.7:
+                # Draw on original frame
+                cv2.rectangle(frame, (0, 0), (frame_width, frame_height), (0, 0, 255), 3)
+                cv2.putText(frame, f"{label} ({confidence:.2f})", (50, 50),
+                            cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
+
+                # Log detection if not recently seen
+                detection_key = f"{label}_{int(current_time)}"
+                if detection_key not in recent_detections:
+                    recent_detections.add(detection_key)
+
+                    # Save frame as image
+                    _, image_buffer = cv2.imencode('.jpg', frame)
+                    image_data = image_buffer.tobytes()
+
+                    # Log to database
+                    print("Label: ",label)
+                    print("confidence: ",confidence)
+                    log_detection_to_db(camera_id, "anamoly", 1, image_data,label)
+
+                    # Send alert if cooldown period has passed
+                    print("Current time: ",current_time)
+                    print("Last anamoly alert time: ",last_anamoly_alert_time)
+                    if (current_time - last_anamoly_alert_time) > cooldown_seconds:
+                        last_anamoly_alert_time = current_time
+                        timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                        action = f"Suspicious activity detected: {label}"
+                        log_alert(location_name, "Suspicious", action, timestamp, camera_id, 1)
+
+        out.write(frame)
+
+    cap.release()
+    out.release()
+    print(f"anamoly processing complete. Output saved to {output_path}")
+
+
+# def anamoly_process_video(video_path, output_path, cooldown_seconds=0, location_name="MainHall"):
+#     """Process video for suspicious activities."""
+#     print("anamoly UPLOAD VIDEO CALLED")
+    
+#     cap = cv2.VideoCapture(video_path)
+#     frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+#     frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+#     fps = int(cap.get(cv2.CAP_PROP_FPS))
+    
+#     # Buffer to store frame sequences
+#     frame_buffer = []
+#     sequence_length = 15  # Matches model's time dimension
+#     target_size = (64, 64)  # Matches model's spatial dimensions
+    
+#     # Prepare output video
+#     fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+#     out = cv2.VideoWriter(output_path, fourcc, fps, (frame_width, frame_height))
+    
+#     camera_id = os.path.basename(video_path)
+#     recent_detections = set()
+    
+#     while cap.isOpened():
+#         ret, frame = cap.read()
+#         if not ret:
+#             break
+            
+#         # Preprocess frame
+#         resized_frame = cv2.resize(frame, target_size)
+#         normalized_frame = resized_frame / 255.0
+#         frame_buffer.append(normalized_frame)
+        
+#         # Process when buffer has enough frames
+#         if len(frame_buffer) >= sequence_length:
+#             # Create input sequence (1, 15, 64, 64, 3)
+#             input_sequence = np.expand_dims(np.array(frame_buffer), axis=0)
+            
+#             # Get predictions
+#             predictions = SUSSY_MODEL.predict(input_sequence)
+#             predicted_class = np.argmax(predictions[0])
+#             confidence = np.max(predictions[0])
+#             label = SUSSY_LABELS[predicted_class]
+            
+#             current_time = time.time()
+            
+#             # Process detection (same as before)
+#             if confidence > 0.7:
+#                 # Draw on original frame
+#                 cv2.rectangle(frame, (0, 0), (frame_width, frame_height), (0, 0, 255), 3)
+#                 cv2.putText(frame, f"{label} ({confidence:.2f})", (50, 50), 
+#                             cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
+#                 # Log detection if not recently seen
+#                 detection_key = f"{label}_{int(current_time)}"  # Unique key for this detection
+#                 if detection_key not in recent_detections_cache['anamoly']:
+#                     recent_detections_cache['anamoly'].add(detection_key)
+                    
+#                     # Save frame as image
+#                     _, image_buffer = cv2.imencode('.jpg', frame)
+#                     image_data = image_buffer.tobytes()
+                    
+#                     # Log to database
+#                     log_detection_to_db(camera_id, "anamoly", 1, image_data)
+                    
+#                     # Send alert if cooldown period has passed
+#                     if (current_time - last_anamoly_alert_time) > 0:
+#                     # if (current_time - last_anamoly_alert_time) > cooldown_seconds:
+#                         last_anamoly_alert_time = current_time
+#                         timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+#                         action = f"Suspicious activity detected: {label}"
+#                         log_alert(location_name, "Suspicious", action, timestamp, camera_id, 1)
+                                       
+#             # Reset buffer (or use sliding window)
+#             frame_buffer = []
+
+#         out.write(frame)
+    
+#     cap.release()
+#     out.release()
+#     print(f"anamoly processing complete. Output saved to {output_path}")
+
+
+def anamoly_process_webcam_feed(frame, cooldown_seconds=0, location_name="Webcam Location"):
+    """Process single frame from webcam for suspicious activities."""
+    global last_anamoly_alert_time
+    
+    # Resize frame for model input
+    resized_frame = cv2.resize(frame, (224, 224))
+    normalized_frame = resized_frame / 255.0
+    input_frame = np.expand_dims(normalized_frame, axis=0)
+    
+    # Get predictions
+    predictions = SUSSY_MODEL.predict(input_frame)
+    predicted_class = np.argmax(predictions[0])
+    confidence = np.max(predictions[0])
+    label = SUSSY_LABELS[predicted_class]
+    
+    current_time = time.time()
+    detection_made = False
+    
+    # Only consider high-confidence detections
+    if confidence > 0.7:  # Adjust threshold as needed
+        # Draw bounding box and label
+        cv2.rectangle(frame, (0, 0), (frame.shape[1], frame.shape[0]), (0, 0, 255), 3)
+        cv2.putText(frame, f"{label} ({confidence:.2f})", (50, 50), 
+                    cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
+        
+        # Log detection if not recently seen
+        detection_key = f"{label}_{int(current_time)}"
+        if detection_key not in recent_detections_cache['anamoly']:
+            recent_detections_cache['anamoly'].add(detection_key)
+            detection_made = True
+            
+            # Save frame as image
+            _, image_buffer = cv2.imencode('.jpg', frame)
+            image_data = image_buffer.tobytes()
+            
+            # Log to database
+            log_detection_to_db("Webcam", "anamoly", 1, image_data)
+            
+            # Send alert if cooldown period has passed
+            if (current_time - last_anamoly_alert_time) > cooldown_seconds:
+                last_anamoly_alert_time = current_time
+                timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                action = f"Suspicious activity detected: {label}"
+                log_alert(location_name, "Suspicious", action, timestamp, "Webcam", 1)
+    
+    return "anamoly", 1 if detection_made else 0
+
+
 #FLASK ROUTING
 @app.route('/')
 def index():
@@ -781,7 +1026,12 @@ def upload_file():
                 tasks.append(executor.submit(QUEUE_process_video_for_detections, input_path, QUEUE_MODEL, cooldown_seconds ))
             if 'smoke' in selected_models:
                 tasks.append(executor.submit(SMOKE_process_video_for_detections, input_path, SMOKE_MODEL, cooldown_seconds))
-
+            if 'anamoly' in selected_models:
+                output_path_anamoly = os.path.join(app.config['OUTPUT_FOLDER'], 'anamoly_' + file.filename)
+                tasks.append(executor.submit(
+                    anamoly_process_video, 
+                    input_path, output_path_anamoly, cooldown_seconds, location_name
+                ))
         if file1:
             input_path1 = os.path.join(app.config['UPLOAD_FOLDER'], file1.filename)
             file1.save(input_path1)
@@ -862,6 +1112,11 @@ def webcam_feed():
                         tasks.append(executor.submit(QUEUE_detect_objects_from_webcam, frame, QUEUE_MODEL, cooldown_seconds,location_name))
                     if 'smoke' in selected_models:
                         tasks.append(executor.submit(SMOKE_detect_objects_from_webcam, frame, SMOKE_MODEL, cooldown_seconds,location_name))
+                    if 'anamoly' in selected_models:
+                        tasks.append(executor.submit(
+                            anamoly_process_webcam_feed, 
+                            frame, cooldown_seconds, location_name
+                        ))
 
                     for future in as_completed(tasks):
                         try:

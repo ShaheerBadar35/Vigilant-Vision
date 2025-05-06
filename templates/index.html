@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!-- <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -110,6 +110,355 @@
                 document.getElementById(`${feedId}Status`).textContent = `Error: ${error.message}`;
             }
         }
+    </script>   
+</body>
+</html> -->
+
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Processor</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        h1, h2, h3 {
+            color: #2c3e50;
+        }
+        fieldset {
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            padding: 10px;
+            margin: 10px 0;
+        }
+        legend {
+            padding: 0 10px;
+            font-weight: bold;
+        }
+        label {
+            display: inline-block;
+            margin: 5px 10px 5px 0;
+        }
+        button {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 10px;
+        }
+        button:hover {
+            background-color: #2980b9;
+        }
+        #settingsPanel {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        .feed-container {
+            background-color: #f1f1f1;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        #alertsContainer {
+            margin-top: 30px;
+        }
+        .alert-item {
+            border: 1px solid #ddd;
+            padding: 10px;
+            margin-bottom: 10px;
+            border-radius: 5px;
+        }
+        .alert-image {
+            max-width: 300px;
+            max-height: 200px;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Video Surveillance System</h1>
+    
+    <div id="settingsPanel">
+        <h2>System Settings</h2>
+        <div>
+            <label>Detection Threshold: <input type="number" id="threshold" value="20" min="1"></label>
+            <label>Alert Cooldown (sec): <input type="number" id="cooldown" value="40" min="1"></label>
+            <label>Mask Mode: 
+                <select id="maskMode">
+                    <option value="without_mask">Without Mask</option>
+                    <option value="mask">With Mask</option>
+                </select>
+            </label>
+        </div>
+        <div style="margin-top: 10px;">
+            <label>Location Camera 1: <input type="text" id="location1" value="MainHall"></label>
+            <label>Location Camera 2: <input type="text" id="location2" value="Entrance"></label>
+            <button onclick="updateSettings()">Update Settings</button>
+        </div>
+    </div>
+    
+    <h2>Upload Video(s)</h2>
+    <form action="/upload" method="post" enctype="multipart/form-data" id="uploadForm">
+        <div>
+            <label>Video 1: <input type="file" name="file1"></label>
+            <fieldset>
+                <legend>Models for Video 1:</legend>
+                <label><input type="checkbox" name="models_file1" value="mask"> Mask Detection</label>
+                <label><input type="checkbox" name="models_file1" value="crowd"> Crowd Count</label>
+                <label><input type="checkbox" name="models_file1" value="queue"> Queue Detection</label>
+                <label><input type="checkbox" name="models_file1" value="smoke"> Smoke Detection</label>
+                <label><input type="checkbox" name="models_file1" value="sussy"> Suspicious Activity</label>
+            </fieldset>
+        </div>
+        
+        <div>
+            <label>Video 2: <input type="file" name="file2"></label>
+            <fieldset>
+                <legend>Models for Video 2:</legend>
+                <label><input type="checkbox" name="models_file2" value="mask"> Mask Detection</label>
+                <label><input type="checkbox" name="models_file2" value="crowd"> Crowd Count</label>
+                <label><input type="checkbox" name="models_file2" value="queue"> Queue Detection</label>
+                <label><input type="checkbox" name="models_file2" value="smoke"> Smoke Detection</label>
+                <label><input type="checkbox" name="models_file2" value="sussy"> Suspicious Activity</label>
+            </fieldset>
+        </div>
+        
+        <button type="submit">Process Videos</button>
+    </form>
+    <p id="uploadStatus"></p>
+    <p id="uploadDetections"></p>
+    <div id="uploadResults" style="display: none;">
+        <a id="uploadDownloadLink">Download Processed Video</a>
+        <div id="uploadDetectionDetails"></div>
+    </div>
+    
+    <h2>Live Feeds</h2>
+    <div class="feed-container">
+        <h3>Live Feed 1 (Laptop Webcam)</h3>
+        <fieldset>
+            <legend>Select Models for Feed 1:</legend>
+            <label><input type="checkbox" name="models_feed1" value="mask"> Mask Detection</label>
+            <label><input type="checkbox" name="models_feed1" value="crowd"> Crowd Count</label>
+            <label><input type="checkbox" name="models_feed1" value="queue"> Queue Detection</label>
+            <label><input type="checkbox" name="models_feed1" value="smoke"> Smoke Detection</label>
+            <label><input type="checkbox" name="models_feed1" value="sussy"> Suspicious Activity</label>
+        </fieldset>
+        <button onclick="startFeed('feed1')">Start Feed 1</button>
+        <button onclick="stopFeed('feed1')">Stop Feed 1</button>
+        <p id="feed1Status"></p>
+        <div id="feed1Results"></div>
+    </div>
+    
+    <div class="feed-container">
+        <h3>Live Feed 2 (Phone Feed)</h3>
+        <fieldset>
+            <legend>Select Models for Feed 2:</legend>
+            <label><input type="checkbox" name="models_feed2" value="mask"> Mask Detection</label>
+            <label><input type="checkbox" name="models_feed2" value="crowd"> Crowd Count</label>
+            <label><input type="checkbox" name="models_feed2" value="queue"> Queue Detection</label>
+            <label><input type="checkbox" name="models_feed2" value="smoke"> Smoke Detection</label>
+            <label><input type="checkbox" name="models_feed2" value="sussy"> Suspicious Activity</label>
+        </fieldset>
+        <button onclick="startFeed('feed2')">Start Feed 2</button>
+        <button onclick="stopFeed('feed2')">Stop Feed 2</button>
+        <p id="feed2Status"></p>
+        <div id="feed2Results"></div>
+    </div>
+    
+    <!-- <div id="alertsContainer">
+        <h2>Recent Alerts</h2>
+        <button onclick="fetchAlerts()">Refresh Alerts</button>
+        <div id="alertsList"></div>
+    </div> -->
+    
+    <script>
+        // Global settings
+        let currentSettings = {
+            threshold: 20,
+            cooldown: 40,
+            mask_mode: "without_mask",
+            location_camera_1: "MainHall",
+            location_camera_2: "Entrance"
+        };
+        
+        // Initialize settings from inputs
+        function loadSettings() {
+            currentSettings.threshold = parseInt(document.getElementById('threshold').value);
+            currentSettings.cooldown = parseInt(document.getElementById('cooldown').value);
+            currentSettings.mask_mode = document.getElementById('maskMode').value;
+            currentSettings.location_camera_1 = document.getElementById('location1').value;
+            currentSettings.location_camera_2 = document.getElementById('location2').value;
+        }
+        
+        // Update settings on server
+        async function updateSettings() {
+            loadSettings();
+            try {
+                const response = await fetch('/set_settings', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(currentSettings)
+                });
+                const result = await response.json();
+                alert('Settings updated successfully');
+            } catch (error) {
+                alert('Error updating settings: ' + error.message);
+            }
+        }
+        
+        // Handle video upload form submission
+        document.getElementById('uploadForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const formData = new FormData(this);
+            
+            // Add current settings to form data
+            formData.append('threshold', currentSettings.threshold);
+            formData.append('cooldown', currentSettings.cooldown);
+            formData.append('mask_mode', currentSettings.mask_mode);
+            formData.append('location_camera_1', currentSettings.location_camera_1);
+            formData.append('location_camera_2', currentSettings.location_camera_2);
+            
+            document.getElementById('uploadStatus').textContent = 'Processing videos...';
+            document.getElementById('uploadResults').style.display = 'none';
+            
+            try {
+                const response = await fetch('/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+                const result = await response.json();
+                
+                document.getElementById('uploadStatus').textContent = result.message;
+                document.getElementById('uploadDetections').textContent = JSON.stringify(result.results, null, 2);
+                document.getElementById('uploadResults').style.display = 'block';
+                
+                // If there's a processed video to download
+                if (result.results.crowd) {
+                    document.getElementById('uploadDownloadLink').href = '/download?filename=crowd_' + 
+                        document.querySelector('input[name="file1"]').files[0]?.name;
+                }
+                
+            } catch (error) {
+                document.getElementById('uploadStatus').textContent = 'Error: ' + error.message;
+            }
+        });
+        
+        // Live feed functions
+        async function startFeed(feedId) {
+            const selectedModels = Array.from(document.querySelectorAll(`input[name='models_${feedId}']:checked`))
+                .map(cb => cb.value);
+            
+            if (selectedModels.length === 0) {
+                document.getElementById(`${feedId}Status`).textContent = 'Please select at least one model';
+                return;
+            }
+            
+            document.getElementById(`${feedId}Status`).textContent = `Starting ${feedId}...`;
+            
+            try {
+                const response = await fetch('/webcam', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: 'start',
+                        feed_id: feedId,
+                        models: selectedModels,
+                        threshold: currentSettings.threshold,
+                        cooldown: currentSettings.cooldown,
+                        mask_mode: currentSettings.mask_mode,
+                        location_name: feedId === 'feed1' ? 
+                            currentSettings.location_camera_1 : 
+                            currentSettings.location_camera_2
+                    })
+                });
+                const result = await response.json();
+                document.getElementById(`${feedId}Status`).textContent = result.message;
+                
+                // Display detection results if available
+                if (result.results) {
+                    let resultsHtml = '<h4>Detection Results:</h4><ul>';
+                    for (const [model, count] of Object.entries(result.results)) {
+                        resultsHtml += `<li>${model}: ${count}</li>`;
+                    }
+                    resultsHtml += '</ul>';
+                    document.getElementById(`${feedId}Results`).innerHTML = resultsHtml;
+                }
+            } catch (error) {
+                document.getElementById(`${feedId}Status`).textContent = `Error: ${error.message}`;
+            }
+        }
+        
+        async function stopFeed(feedId) {
+            document.getElementById(`${feedId}Status`).textContent = `Stopping ${feedId}...`;
+            try {
+                const response = await fetch('/webcam', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: 'stop',
+                        feed_id: feedId
+                    })
+                });
+                const result = await response.json();
+                document.getElementById(`${feedId}Status`).textContent = result.message;
+            } catch (error) {
+                document.getElementById(`${feedId}Status`).textContent = `Error: ${error.message}`;
+            }
+        }
+        
+        // Fetch and display alerts
+        async function fetchAlerts() {
+            document.getElementById('alertsList').innerHTML = '<p>Loading alerts...</p>';
+            try {
+                const response = await fetch('/alerts');
+                const alerts = await response.json();
+                
+                if (alerts.error) {
+                    document.getElementById('alertsList').innerHTML = `<p>Error: ${alerts.error}</p>`;
+                    return;
+                }
+                
+                if (alerts.length === 0) {
+                    document.getElementById('alertsList').innerHTML = '<p>No alerts found</p>';
+                    return;
+                }
+                
+                let alertsHtml = '';
+                alerts.forEach(alert => {
+                    alertsHtml += `
+                        <div class="alert-item">
+                            <h4>${alert.alert_type} at ${alert.location_name}</h4>
+                            <p>Camera: ${alert.camera_id || 'N/A'}</p>
+                            <p>Detected: ${alert.detected_value || 'N/A'}</p>
+                            <p>Action: ${alert.action || 'N/A'}</p>
+                            <p>Time: ${alert.timestamp}</p>
+                            ${alert.image ? `<img class="alert-image" src="data:image/jpeg;base64,${alert.image}" alt="Alert Image">` : ''}
+                        </div>
+                    `;
+                });
+                
+                document.getElementById('alertsList').innerHTML = alertsHtml;
+            } catch (error) {
+                document.getElementById('alertsList').innerHTML = `<p>Error fetching alerts: ${error.message}</p>`;
+            }
+        }
+        
+        // Initialize page
+        document.addEventListener('DOMContentLoaded', function() {
+            loadSettings();
+            fetchAlerts();
+            setInterval(fetchAlerts, 30000); // Refresh alerts every 30 seconds
+        });
     </script>   
 </body>
 </html>
