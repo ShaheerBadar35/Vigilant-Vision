@@ -63,8 +63,8 @@ const Alerts = () => {
 
     try {
       await addDoc(collection(db, 'alerts'), {
-        alert_type: "Admin",
-        camera_id: null,
+        alert_type: "Test",
+        camera_id: "Admin",
         detected_value: null,
         location_name: location,
         status: "pending",
@@ -90,7 +90,7 @@ const Alerts = () => {
 
   const fetchAdminAlerts = async () => {
     try {
-      const q = query(collection(db, 'alerts'), where('alert_type', '==', 'Admin'));
+      const q = query(collection(db, 'alerts'), where('camera_id', '==', 'Admin'));
       const querySnapshot = await getDocs(q);
       const alertsData = querySnapshot.docs.map(doc => ({
         id: doc.id,
@@ -104,7 +104,7 @@ const Alerts = () => {
 
   const fetchNonAdminAlerts = async () => {
     try {
-      const q = query(collection(db, 'alerts'), where('alert_type', '!=', 'Admin'));
+      const q = query(collection(db, 'alerts'), where('camera_id', '!=', 'Admin'));
       const snapshot = await getDocs(q);
       const data = snapshot.docs.map(doc => ({
         id: doc.id,
@@ -115,20 +115,6 @@ const Alerts = () => {
       console.error("Error fetching non-admin alerts:", error);
     }
   };
-
-  // const handleDelete = async () => {
-  //   if (!selectedAlertToDelete) return;
-  
-  //   try {
-  //     await deleteDoc(doc(db, 'alerts', selectedAlertToDelete.id));
-  //     setAdminAlerts(prev => prev.filter(alert => alert.id !== selectedAlertToDelete.id));
-  //     setShowDeletePopup(false);
-  //     setSelectedAlertToDelete(null);
-  //   } catch (error) {
-  //     console.error('Error deleting alert:', error);
-  //     alert('Failed to delete alert.');
-  //   }
-  // };
 
   const handleDelete = async () => {
     if (!selectedAlertToDelete) return;
@@ -168,7 +154,7 @@ const Alerts = () => {
           onChange={(e) => setAlertText(e.target.value)}
           className="Alerts-input"
         />
-        <button className="generate-button" onClick={handleGenerate}>
+        <button className="generate-button" onClick={handleGenerate} style={{ marginLeft: "10px" }}>
           Generate Alerts
         </button>
       </div>
@@ -235,16 +221,23 @@ const Alerts = () => {
                     {item.status}
                   </span>
                 </td>
-                <td>{item.timestamp}</td>
+                <td>
+                  {item.timestamp?.seconds
+                    ? new Date(item.timestamp.seconds * 1000).toLocaleString()
+                    : item.timestamp}
+                </td>
                 <td>{item.location_name}</td>
                 <td>
                   <button className="edit-btn">Edit</button>
-                  <button className="delete-btn"
-                  onClick={() => {
-                    setSelectedAlertToDelete(item);
-                    setShowDeletePopup(true);
-                  }}                  
-                  >🗑️</button>
+                  <button
+                    className="delete-btn"
+                    onClick={() => {
+                      setSelectedAlertToDelete(item);
+                      setShowDeletePopup(true);
+                    }}
+                  >
+                    🗑️
+                  </button>
                 </td>
               </tr>
             ))}
