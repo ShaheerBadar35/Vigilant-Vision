@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import './Settings.css';
 
 const Settings = () => {
@@ -9,6 +9,14 @@ const Settings = () => {
     cameraLocation1: '',
     cameraLocation2: '',
   });
+
+  // ✅ Load settings from localStorage when the component mounts
+  useEffect(() => {
+    const savedSettings = JSON.parse(localStorage.getItem('settingsForm'));
+    if (savedSettings) {
+      setForm(savedSettings);
+    }
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -27,12 +35,15 @@ const Settings = () => {
       const result = await response.json();
       alert("✅ Settings saved!");
       console.log(result);
+
+      // ✅ Save to localStorage
+      localStorage.setItem('settingsForm', JSON.stringify(form));
     } catch (error) {
       console.error("Failed to save settings:", error);
       alert("❌ Failed to save settings.");
     }
   };
-  
+
   const handleChange = (e) => {
     const { name, value } = e.target;
     setForm({ ...form, [name]: value });
@@ -53,6 +64,7 @@ const Settings = () => {
               value={form.crowdThreshold}
               onChange={handleChange}
               placeholder="Enter max number of people"
+              min="0"
             />
             <span className="tooltip-text">
               Maximum number of people on which alerts won’t be detected
@@ -68,6 +80,8 @@ const Settings = () => {
               value={form.cooldownSeconds}
               onChange={handleChange}
               placeholder="Enter cooldown in seconds"
+              min="0"
+              step="10"
             />
             <span className="tooltip-text">
               Number of seconds on which alerts won’t be sent
@@ -110,6 +124,7 @@ const Settings = () => {
               placeholder="Enter location"
             />
           </div>
+
           <button className="save-btn" onClick={handleSubmit}>Save Settings</button>
         </form>
       </div>

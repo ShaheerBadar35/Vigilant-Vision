@@ -44,6 +44,8 @@ const Alerts = () => {
   const [showDeletePopup, setShowDeletePopup] = useState(false);
   const [nonAdminAlerts, setNonAdminAlerts] = useState([]);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [alertType, setAlertType] = useState('');
+
 
   const handleGenerate = () => {
     if (alertText.trim() === '') {
@@ -158,27 +160,47 @@ const Alerts = () => {
           Generate Alerts
         </button>
       </div>
+    
+    
+
       {showLocationPopup && (
-        <div className="popup-overlay">
-          <div className="popup">
-            <h3>Enter Location</h3>
-            <input
-              type="text"
-              value={location}
-              onChange={(e) => setLocation(e.target.value)}
-              placeholder="Location name"
-            />
-            <div className="popup-buttons">
-              <button onClick={handleLocationSubmit} disabled={isLoading}>
-                {isLoading ? 'Submitting...' : 'OK'}
-              </button>
-              <button onClick={() => !isLoading && setShowLocationPopup(false)}>
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}      
+  <div className="popup-overlay">
+    <div className="popup">
+      <h3>Enter Location</h3>
+      <input
+        type="text"
+        value={location}
+        onChange={(e) => setLocation(e.target.value)}
+        placeholder="Location name"
+      />
+
+      {/* Alert Type Dropdown */}
+      <select
+        value={alertType}
+        onChange={(e) => setAlertType(e.target.value)}
+        className="alert-type-dropdown"
+      >
+        <option value="">Select Alert Type</option>
+        <option value="crowd">Crowd</option>
+        <option value="queue">Queue</option>
+        <option value="smoke">Smoke</option>
+        <option value="mask">Mask</option>
+        <option value="suspicious">Suspicious Activity</option>
+        <option value="general">General</option>
+      </select>
+
+      <div className="popup-buttons">
+        <button onClick={handleLocationSubmit} disabled={isLoading}>
+          {isLoading ? 'Submitting...' : 'OK'}
+        </button>
+        <button onClick={() => !isLoading && setShowLocationPopup(false)}>
+          Cancel
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+
       <section className="recent-section">
         <h2>Admin Generated Alerts</h2>
         <div className="recent-list">
