@@ -1,8 +1,27 @@
-  /* new alerts css */
+  
   .alerts-container {
     padding: 20px;
     background-color: #fff;
   }
+
+  .generate-container{
+    
+    background-color: #f4f6f8;
+    padding: 20px;
+    border-radius: 10px;
+    height: 80px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    margin-bottom: 40px;
+  }
+
+  .generate-container input{
+    background-color: #f4f6f8;
+    border: none;
+    outline: none;
+  }
+
   
   .notification-box {
     display: flex;
@@ -40,7 +59,7 @@
   }
   
   .generate-button:hover {
-    background-color: #1e40af;
+    background-color: #4a43e3;
   }
 
   /*.alerts-container {
@@ -48,6 +67,8 @@
     font-family: 'Segoe UI', sans-serif;
     color: #333;
   }*/
+
+  
   
   .recent-section h2,
   .history-section h2 {
@@ -56,8 +77,9 @@
   }
   
   .recent-list {
+    padding-top: 12px;
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(480px, 1fr));
     gap: 10px;
   }
   
@@ -66,8 +88,8 @@
     align-items: center;
     border: 1px solid #e2e2e2;
     border-radius: 12px;
-    padding: 12px;
-    background: #f9f9f9;
+    padding: 15px;
+    background: #f4f6f8;
   }
   
   .recent-item .bell {
@@ -78,15 +100,29 @@
     flex-grow: 1;
     margin: 0;
   }
+
+  .bell-icon {
+  font-size: 25px;
+  margin-right: 10px;
+  vertical-align: middle;
+}
+.delete-btn svg {
+  font-size: 22px;
+  color: #EA373A;
+  
+}
+
   
   .edit-btn {
-    background-color: #e5e7eb;
+    background-color: #fff;
     color: #111;
     border: none;
-    padding: 6px 10px;
+    padding: 5px 20px;
     margin-right: 5px;
     border-radius: 6px;
     cursor: pointer;
+    border: 1px solid #ccc;
+    margin-right: 30px;
   }
   
   .delete-btn {
@@ -142,20 +178,25 @@
   }
   
   .status {
-    padding: 4px 12px;
+    padding: 4px 18px;
     border-radius: 20px;
     font-size: 0.85rem;
-    font-weight: bold;
+    font-weight: 500;
+  }
+
+  .status.assigned {
+    background-color: #1ce1da1b;
+    color: #1CE1DB;
   }
   
   .status.pending {
-    background-color: #fef3c7;
-    color: #b45309;
+    background-color: #f0d4021e;
+    color: #F0D402;
   }
   
-  .status.done {
-    background-color: #d1fae5;
-    color: #065f46;
+  .status.resolved {
+    background-color: #16e11d18;
+    color: #16E11D;
   }
   
   .popup-overlay {
@@ -179,14 +220,24 @@
     box-shadow: 0 4px 10px rgba(0,0,0,0.2);
     text-align: center;
   }
+
+  .popup h3 {
+  margin-top: 0;
+  font-size: 18px;
+  color: #333;
+}
+
+
   
   .popup input {
     width: 100%;
-    /* padding: 10px; */
     padding-top: 10px;
     padding-bottom: 10px;
-    margin: 10px 0px;
-    border: 2px solid #2563eb;
+    padding-left:10px;
+    border: 2px solid #ccc;
+    border-radius: 10px;
+    margin-bottom: 20px;
+    
   }
   
   .popup-buttons button {
@@ -205,4 +256,24 @@
   .popup-buttons button:last-child {
     background-color: #eee;
   }
+
+  .alert-type-dropdown {
+  width: 100%;
+  padding: 10px 12px;
+  border: 2px solid #ccc;
+  border-radius: 10px;
+  font-size: 14px;
+  margin-bottom: 20px;
+  transition: border 0.3s;
+}
+
+.alert-type-dropdown:focus {
+  border-color: #2563eb;
+  outline: none;
+}
+
+.alert-type-dropdown option:checked {
+  background-color: #2563eb;
+  color: white;
+}
   

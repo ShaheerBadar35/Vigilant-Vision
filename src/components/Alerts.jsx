@@ -4,6 +4,10 @@ import React, { useState,useEffect  } from 'react';
 import './Alerts.css';
 import { db } from './firebaseConfig';
 import { collection, addDoc, Timestamp, query, where, getDocs, doc, deleteDoc  } from 'firebase/firestore';
+import { FaBell, FaTrash } from 'react-icons/fa';
+import { HiOutlineBell } from 'react-icons/hi';
+import { FiTrash2 } from 'react-icons/fi';
+
 
 const AlertsHistory = [
   {
@@ -147,17 +151,17 @@ const Alerts = () => {
 
   return (
     <div className="alerts-container">
-      <h2>Generate Alerts</h2>
-      <div className="Alerts-box">
+      <h2>Generate Alert</h2>
+      <div className="generate-container">
         <input
           type="text"
-          placeholder="Enter Action..."
+          placeholder="Enter Action to take..."
           value={alertText}
           onChange={(e) => setAlertText(e.target.value)}
           className="Alerts-input"
         />
         <button className="generate-button" onClick={handleGenerate} style={{ marginLeft: "10px" }}>
-          Generate Alerts
+          Generate Alert
         </button>
       </div>
     
@@ -175,18 +179,18 @@ const Alerts = () => {
       />
 
       {/* Alert Type Dropdown */}
+      <h3>Select Alert Type</h3>
       <select
         value={alertType}
         onChange={(e) => setAlertType(e.target.value)}
         className="alert-type-dropdown"
       >
-        <option value="">Select Alert Type</option>
-        <option value="crowd">Crowd</option>
-        <option value="queue">Queue</option>
-        <option value="smoke">Smoke</option>
-        <option value="mask">Mask</option>
-        <option value="suspicious">Suspicious Activity</option>
-        <option value="general">General</option>
+        <option value="General">General</option>
+        <option value="Crowd">Crowd</option>
+        <option value="Queue">Queue</option>
+        <option value="Smoke">Smoke</option>
+        <option value="Mask">Mask</option>
+        <option value="Suspicious">Suspicious Activity</option>
       </select>
 
       <div className="popup-buttons">
@@ -202,34 +206,34 @@ const Alerts = () => {
 )}
 
       <section className="recent-section">
-        <h2>Admin Generated Alerts</h2>
+        <h2>Admin Alerts</h2>
         <div className="recent-list">
           {adminAlerts.map((alert, index) => (
             <div key={alert.id || index} className="recent-item">
-              <span className="bell">🔔</span>
+              <HiOutlineBell className="bell-icon" />
               <p>{alert.action}</p>
               <button className="edit-btn">Edit</button>
-              <button className="delete-btn"
-              >
-              🗑️
-            </button>              
+              <button className="delete-btn">
+                <FiTrash2 />
+              </button>              
             </div>
           ))}
         </div>
       </section>
       <section className="history-section">
-        <h2>Alerts History</h2>
+        <h2>Recent Alerts</h2>
         <div className="history-header">
-          <input type="text" className="search-input" placeholder="search" />
+         
         </div>
         <table className="history-table">
           <thead>
             <tr>
               <th>Action</th>
               <th>Type</th>
-              <th>Status</th>
-              <th>Date</th>
               <th>Location</th>
+              <th>Status</th>
+              <th>Detections</th>
+              <th>Timestamp</th>
               <th></th>
             </tr>
           </thead>
@@ -238,19 +242,21 @@ const Alerts = () => {
               <tr key={item.id}>
                 <td>{item.action}</td>
                 <td>{item.alert_type}</td>
+               
+                <td>{item.location_name}</td>
                 <td>
                   <span className={`status ${item.status?.toLowerCase()}`}>
                     {item.status}
                   </span>
                 </td>
+                <td>{item.detected_value}</td>
+                 
                 <td>
                   {item.timestamp?.seconds
                     ? new Date(item.timestamp.seconds * 1000).toLocaleString()
                     : item.timestamp}
                 </td>
-                <td>{item.location_name}</td>
                 <td>
-                  <button className="edit-btn">Edit</button>
                   <button
                     className="delete-btn"
                     onClick={() => {
@@ -258,7 +264,7 @@ const Alerts = () => {
                       setShowDeletePopup(true);
                     }}
                   >
-                    🗑️
+                    <FiTrash2 />
                   </button>
                 </td>
               </tr>
