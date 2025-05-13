@@ -3,7 +3,7 @@ import cv2
 import sqlite3
 import tensorflow as tf
 from tensorflow.keras.models import load_model
-from flask import Flask, request, jsonify, render_template, send_file, Response,url_for,send_from_directory,redirect,stream_with_context
+from flask import Flask, request, jsonify, render_template, send_file, Response,url_for,send_from_directory,redirect
 from datetime import datetime
 from ultralytics import YOLO
 import numpy as np
@@ -44,22 +44,7 @@ os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['OUTPUT_FOLDER'] = OUTPUT_FOLDER
 
-# Store latest frames globally (for feed1 and feed2)
-latest_frames = {
-    "feed1": None,
-    "feed2": None
-}
 
-def generate_mjpeg(feed_id):
-    """Generator function to stream MJPEG frames."""
-    while True:
-        frame = latest_frames.get(feed_id)
-        if frame is not None:
-            ret, buffer = cv2.imencode('.jpg', frame)
-            frame_bytes = buffer.tobytes()
-            yield (b'--frame\r\n'
-                   b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
-            
 # Initialize Firebase (replace 'path/to/serviceAccountKey.json' with your credentials)
 #cred = credentials.Certificate('credentials.json')
 #firebase_admin.initialize_app(cred)
@@ -1082,17 +1067,6 @@ def download_file():
         return jsonify({'error': 'File not found'}), 404
     return send_file(file_path, as_attachment=True)
 
-@app.route('/video_feed1')
-def video_feed1():
-    return Response(generate_mjpeg('feed1'),
-                    mimetype='multipart/x-mixed-replace; boundary=frame')
-
-@app.route('/video_feed2')
-def video_feed2():
-    return Response(generate_mjpeg('feed2'),
-                    mimetype='multipart/x-mixed-replace; boundary=frame')
-
-
 @app.route('/webcam', methods=['POST'])
 def webcam_feed():
     global is_live_feed_running
@@ -1165,7 +1139,6 @@ def webcam_feed():
                 responses.update(frame_results)
 
                 cv2.imshow(f'Live Feed - {feed_id}', frame)
-                latest_frames[feed_id] = frame
 
                 if cv2.waitKey(1) & 0xFF == ord('q'):
                     break
@@ -1359,5 +1332,6 @@ def get_suspicious_activity_types():
     print(data)
     return jsonify(data)
 
+
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=True, port=5000)

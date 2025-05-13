@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { FaHome, FaBell, FaCog, FaUserFriends, FaSignOutAlt, } from "react-icons/fa";
+import { FaHome, FaBell, FaCog, FaUserFriends, FaSignOutAlt,FaChartLine } from "react-icons/fa";
 import "./NewSidebar.css";
 import logo from "../assets/logo/logo.png"; 
 import { Link, useLocation } from "react-router-dom";
@@ -11,6 +11,7 @@ const Sidebar = () => {
 
   const menuItems = [
     { icon: <FaHome />, label: "Dashboard", path: "/dashboard" },
+    { icon: <FaChartLine />, label: "Analytics", path: "/analytics" }, 
     { icon: <FaBell />, label: "Alerts", badge: 3, path: "/alerts" },
     { icon: <FaCog />, label: "Settings", path: "/settings" },
     { icon: <FaUserFriends />, label: "About Us", path: "/" },
@@ -33,7 +34,7 @@ const Sidebar = () => {
       </div>
        
       <div className="admin-dropdown">
-        <div className="member">Maryam Shahid</div>
+        <div className="member">FYP Team</div>
       </div>
 
       <ul className="menu">
@@ -47,14 +48,6 @@ const Sidebar = () => {
           </Link>
         ))}
       </ul>
-
-      {/* Signout Section */}
-      <div className="signout">
-        <p>Sign Out</p>
-        <button className="signout-button">
-          <FaSignOutAlt className="signout-icon" />
-        </button>
-      </div>
     </div>
   );
 };
