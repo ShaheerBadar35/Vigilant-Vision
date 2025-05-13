@@ -69,7 +69,7 @@ const Alerts = () => {
 
     try {
       await addDoc(collection(db, 'alerts'), {
-        alert_type: "Test",
+        alert_type: alertType,
         camera_id: "Admin",
         detected_value: null,
         location_name: location,
