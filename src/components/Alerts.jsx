@@ -3,7 +3,7 @@
 import React, { useState,useEffect  } from 'react';
 import './Alerts.css';
 import { db } from './firebaseConfig';
-import { collection, addDoc, Timestamp, query, where, getDocs, doc, deleteDoc  } from 'firebase/firestore';
+import { collection, addDoc, Timestamp, query, where, getDocs, doc, deleteDoc ,orderBy } from 'firebase/firestore';
 import { FaBell, FaTrash } from 'react-icons/fa';
 import { HiOutlineBell } from 'react-icons/hi';
 import { FiTrash2 } from 'react-icons/fi';
@@ -108,19 +108,48 @@ const Alerts = () => {
     }
   };
 
+  // const fetchNonAdminAlerts = async () => {
+  //   try {
+  //     const q = query(collection(db, 'alerts'), where('camera_id', '!=', 'Admin'),
+  //     orderBy('timestamp', 'desc'));
+  //     const snapshot = await getDocs(q);
+  //     const data = snapshot.docs.map(doc => ({
+  //       id: doc.id,
+  //       ...doc.data()
+  //     }));
+  //     setNonAdminAlerts(data);
+  //   } catch (error) {
+  //     console.error("Error fetching non-admin alerts:", error);
+  //   }
+  // };
+
   const fetchNonAdminAlerts = async () => {
-    try {
-      const q = query(collection(db, 'alerts'), where('camera_id', '!=', 'Admin'));
-      const snapshot = await getDocs(q);
-      const data = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      setNonAdminAlerts(data);
-    } catch (error) {
-      console.error("Error fetching non-admin alerts:", error);
-    }
-  };
+  try {
+    const q = query(
+      collection(db, 'alerts'),
+      where('camera_id', '!=', 'Admin')
+    );
+
+    const snapshot = await getDocs(q);
+    const data = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+
+    // ✅ Sort locally by timestamp (latest first)
+    const sortedData = data.sort((a, b) => {
+      if (a.timestamp && b.timestamp) {
+        return b.timestamp.seconds - a.timestamp.seconds;
+      }
+      return 0;
+    });
+
+    setNonAdminAlerts(sortedData);
+  } catch (error) {
+    console.error("Error fetching non-admin alerts:", error);
+  }
+};
+
 
   const handleDelete = async () => {
     if (!selectedAlertToDelete) return;
